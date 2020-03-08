@@ -1,0 +1,120 @@
+# depslib dependency file v1.0
+1583593636 source:/Devel/SwDevel/stm32_usb_flasher/src/dfu.c
+	<stdio.h>
+	<stdlib.h>
+	<libusb-1.0/libusb.h>
+	"portable.h"
+	"dfu.h"
+	"quirks.h"
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/portable.h
+	"config.h"
+	<unistd.h>
+	<time.h>
+	<err.h>
+	<errno.h>
+	<string.h>
+	<sysexits.h>
+
+1583593731 /Devel/SwDevel/stm32_usb_flasher/include/dfu.h
+	<libusb-1.0/libusb.h>
+	"usb_dfu.h"
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/usb_dfu.h
+	<stdint.h>
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/quirks.h
+	"dfu.h"
+	"dfuse_mem.h"
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/dfuse_mem.h
+
+1583600160 source:/Devel/SwDevel/stm32_usb_flasher/src/dfu_file.c
+	<stdio.h>
+	<string.h>
+	<errno.h>
+	<stdint.h>
+	<stdlib.h>
+	<time.h>
+	<fcntl.h>
+	"portable.h"
+	"dfu_file.h"
+	<sys/types.h>
+	<unistd.h>
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/dfu_file.h
+	<stdint.h>
+
+1583593731 source:/Devel/SwDevel/stm32_usb_flasher/src/dfu_load.c
+	<stdio.h>
+	<stdlib.h>
+	<errno.h>
+	<string.h>
+	<libusb-1.0/libusb.h>
+	"portable.h"
+	"dfu.h"
+	"usb_dfu.h"
+	"dfu_file.h"
+	"dfu_load.h"
+	"quirks.h"
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/dfu_load.h
+
+1583593731 source:/Devel/SwDevel/stm32_usb_flasher/src/dfu_util.c
+	<stdio.h>
+	<stdlib.h>
+	<errno.h>
+	<string.h>
+	<libusb-1.0/libusb.h>
+	"portable.h"
+	"dfu.h"
+	"usb_dfu.h"
+	"dfu_file.h"
+	"dfu_load.h"
+	"dfu_util.h"
+	"dfuse.h"
+	"quirks.h"
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/dfu_util.h
+
+1583593582 /Devel/SwDevel/stm32_usb_flasher/include/dfuse.h
+	"dfu.h"
+
+1583600479 source:/Devel/SwDevel/stm32_usb_flasher/src/dfuse.c
+	<stdio.h>
+	<stdlib.h>
+	<errno.h>
+	<string.h>
+	"portable.h"
+	"dfu.h"
+	"usb_dfu.h"
+	"dfu_file.h"
+	"dfuse.h"
+	"dfuse_mem.h"
+	"quirks.h"
+
+1583600368 source:/Devel/SwDevel/stm32_usb_flasher/src/main.c
+	<stdlib.h>
+	<stdio.h>
+	<string.h>
+	<getopt.h>
+	<libusb-1.0/libusb.h>
+	<errno.h>
+	<fcntl.h>
+	<limits.h>
+	"portable.h"
+	"dfu.h"
+	"dfu_file.h"
+	"dfu_load.h"
+	"dfu_util.h"
+	"dfuse.h"
+	<sys/types.h>
+	<unistd.h>
+
+1583593555 source:/Devel/SwDevel/stm32_usb_flasher/src/quirks.c
+	<stdint.h>
+	<stdio.h>
+	<string.h>
+	"portable.h"
+	"quirks.h"
+

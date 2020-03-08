@@ -30,9 +30,54 @@
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
+			<Add directory="include" />
+			<Add directory="/usr/include/libusb-1.0" />
 		</Compiler>
-		<Unit filename="main.c">
+		<Linker>
+			<Add option="-lusb-1.0" />
+		</Linker>
+		<Unit filename="include/dfu.h" />
+		<Unit filename="include/dfu_file.h" />
+		<Unit filename="include/dfu_load.h" />
+		<Unit filename="include/dfu_util.h" />
+		<Unit filename="include/dfuse.h" />
+		<Unit filename="include/dfuse_mem.h" />
+		<Unit filename="include/portable.h" />
+		<Unit filename="include/quirks.h" />
+		<Unit filename="include/usb_dfu.h" />
+		<Unit filename="src/dfu.c">
 			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/dfu_file.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/dfu_load.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/dfu_util.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/dfuse.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/dfuse_mem.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/main.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/prefix.c">
+			<Option compilerVar="CC" />
+			<Option compile="0" />
+			<Option link="0" />
+		</Unit>
+		<Unit filename="src/quirks.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/suffix.c">
+			<Option compilerVar="CC" />
+			<Option compile="0" />
+			<Option link="0" />
 		</Unit>
 		<Extensions>
 			<code_completion />
