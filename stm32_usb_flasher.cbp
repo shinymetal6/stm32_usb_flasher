@@ -36,15 +36,9 @@
 		<Linker>
 			<Add option="-lusb-1.0" />
 		</Linker>
-		<Unit filename="include/dfu.h" />
-		<Unit filename="include/dfu_file.h" />
-		<Unit filename="include/dfu_load.h" />
-		<Unit filename="include/dfu_util.h" />
-		<Unit filename="include/dfuse.h" />
-		<Unit filename="include/dfuse_mem.h" />
-		<Unit filename="include/portable.h" />
-		<Unit filename="include/quirks.h" />
-		<Unit filename="include/usb_dfu.h" />
+		<Unit filename="include/DFU_functions.h" />
+		<Unit filename="include/DFU_protocol.h" />
+		<Unit filename="include/DFU_usb.h" />
 		<Unit filename="src/DFU_functions.c">
 			<Option compilerVar="CC" />
 		</Unit>
