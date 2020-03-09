@@ -11,11 +11,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+/*
 #include "portable.h"
 #include "dfu_file.h"
 #include "portable.h"
-#include "dfu.h"
+//#include "dfu.h"
 #include "quirks.h"
+*/
+
+#include "DFU_usb.h"
+#include "DFU_protocol.h"
+#include "DFU_functions.h"
 
 #define DFU_TIMEOUT 5000
 
@@ -35,8 +41,7 @@ int DFU_download(struct dfu_if *dif, const unsigned short length,unsigned char *
 		 /* wLength       */	 length,
 					 DFU_TIMEOUT);
 	if (status < 0) {
-		errx(EX_IOERR, "%s: libusb_control_transfer returned %d",
-			__FUNCTION__, status);
+		printf("%s: libusb_control_transfer returned %d\n",__FUNCTION__, status);
 	}
 	return status;
 }
@@ -126,7 +131,7 @@ int ret;
     }
 	ret = DFU_download(dif, size, size ? data : NULL, transaction);
 	if (ret < 0) {
-		errx(EX_IOERR, "Error during download");
+		printf("Error during download\n");
 		return ret;
 	}
 	bytes_sent = ret;
@@ -134,7 +139,7 @@ int ret;
 	do {
 		ret = DFU_get_status(dif, &dst);
 		if (ret < 0) {
-			errx(EX_IOERR, "Error during download get_status");
+			printf("Error during download get_status\n");
 			return ret;
 		}
 	} while (dst.bState != DFU_STATE_dfuDNLOAD_IDLE &&
@@ -149,8 +154,8 @@ int ret;
 	if (dst.bStatus != DFU_STATUS_OK) {
 		printf(" failed!\n");
 		printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-		       dfu_state_to_string(dst.bState), dst.bStatus,
-		       dfu_status_to_string(dst.bStatus));
+		       DFU_state_to_string(dst.bState), dst.bStatus,
+		       DFU_status_to_string(dst.bStatus));
 		return -1;
 	}
 	return bytes_sent;
@@ -184,8 +189,8 @@ int firstpoll = 1;
 			firstpoll = 0;
 			if (dst.bState != DFU_STATE_dfuDNBUSY) {
 				printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-				       dfu_state_to_string(dst.bState), dst.bStatus,
-				       dfu_status_to_string(dst.bStatus));
+				       DFU_state_to_string(dst.bState), dst.bStatus,
+				       DFU_status_to_string(dst.bStatus));
                 printf("%s : Error 2 during set_address\n",__FUNCTION__);
 
 			}
@@ -234,8 +239,8 @@ int firstpoll = 1;
 			firstpoll = 0;
 			if (dst.bState != DFU_STATE_dfuDNBUSY) {
 				printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-				       dfu_state_to_string(dst.bState), dst.bStatus,
-				       dfu_status_to_string(dst.bStatus));
+				       DFU_state_to_string(dst.bState), dst.bStatus,
+				       DFU_status_to_string(dst.bStatus));
                 printf("%s : Error 2 during erase\n",__FUNCTION__);
 
 			}
@@ -257,7 +262,7 @@ int firstpoll = 1;
 
 int DFU_download_end(struct dfu_if *dif,unsigned int address)
 {
-int ret,bytes_sent;
+int ret;
 struct dfu_status dst;
 
     printf("Application started from address 0x%08x\n\n",address);
@@ -265,17 +270,16 @@ struct dfu_status dst;
 	ret = DFU_download(dif, 0, NULL, 0x01);
 	if (ret < 0)
 	{
-		errx(EX_IOERR, "Error during download");
+		printf("Error during download\n");
 		return ret;
 	}
-	bytes_sent = ret;
 
 	do {
 		ret = DFU_get_status(dif, &dst);
 		return ret;
 		if (ret < 0)
 		{
-			errx(EX_IOERR, "Error during download get_status");
+			printf("Error during download get_status\n");
 			return ret;
 		}
 		if ( dst.bState == DFU_STATE_dfuDNLOAD_IDLE )
@@ -295,8 +299,8 @@ struct dfu_status dst;
 	if (dst.bStatus != DFU_STATUS_OK) {
 		printf(" failed!\n");
 		printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-		       dfu_state_to_string(dst.bState), dst.bStatus,
-		       dfu_status_to_string(dst.bStatus));
+		       DFU_state_to_string(dst.bState), dst.bStatus,
+		       DFU_status_to_string(dst.bStatus));
 		return -1;
 	}
 	return ret;

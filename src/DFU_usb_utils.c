@@ -29,14 +29,20 @@
 #include <string.h>
 #include <libusb-1.0/libusb.h>
 
+/*
 #include "portable.h"
-#include "dfu.h"
+//#include "dfu.h"
 #include "usb_dfu.h"
 #include "dfu_file.h"
 #include "dfu_load.h"
 #include "dfu_util.h"
-#include "dfuse.h"
+//#include "dfuse.h"
 #include "quirks.h"
+*/
+
+#include "DFU_usb.h"
+#include "DFU_protocol.h"
+#include "DFU_functions.h"
 
 /*
  * Look for a descriptor in a concatenated descriptor list. Will
@@ -56,7 +62,7 @@ static int find_descriptor(const uint8_t *desc_list, int list_len,
 
 		desclen = (int) desc_list[p];
 		if (desclen == 0) {
-			warnx("Invalid descriptor list");
+			printf("Invalid descriptor list\n");
 			return -1;
 		}
 		if (desc_list[p + 1] == desc_type) {
@@ -90,11 +96,11 @@ static int get_utf8_string_descriptor(libusb_device_handle *devh,
 	/* get the language IDs and pick the first one */
 	r = libusb_get_string_descriptor(devh, 0, 0, tbuf, sizeof(tbuf));
 	if (r < 0) {
-		warnx("Failed to retrieve language identifiers");
+		printf("Failed to retrieve language identifiers\n");
 		return r;
 	}
 	if (r < 4 || tbuf[0] < 4 || tbuf[1] != LIBUSB_DT_STRING) {		/* must have at least one ID */
-		warnx("Broken LANGID string descriptor");
+		printf("Broken LANGID string descriptor\n");
 		return -1;
 	}
 	langid = tbuf[2] | (tbuf[3] << 8);
@@ -102,19 +108,19 @@ static int get_utf8_string_descriptor(libusb_device_handle *devh,
 	r = libusb_get_string_descriptor(devh, desc_index, langid, tbuf,
 					 sizeof(tbuf));
 	if (r < 0) {
-		warnx("Failed to retrieve string descriptor %d", desc_index);
+		printf("Failed to retrieve string descriptor %d\n", desc_index);
 		return r;
 	}
 	if (r < 2 || tbuf[0] < 2) {
-		warnx("String descriptor %d too short", desc_index);
+		printf("String descriptor %d too short\n", desc_index);
 		return -1;
 	}
 	if (tbuf[1] != LIBUSB_DT_STRING) {	/* sanity check */
-		warnx("Malformed string descriptor %d, type = 0x%02x", desc_index, tbuf[1]);
+		printf("Malformed string descriptor %d, type = 0x%02x\n", desc_index, tbuf[1]);
 		return -1;
 	}
 	if (tbuf[0] > r) {	/* if short read,           */
-		warnx("Patching string descriptor %d length (was %d, received %d)", desc_index, tbuf[0], r);
+		printf("Patching string descriptor %d length (was %d, received %d)\n", desc_index, tbuf[0], r);
 		tbuf[0] = r;	/* fix up descriptor length */
 	}
 
@@ -228,8 +234,7 @@ static void probe_configuration(libusb_device *dev, struct libusb_device_descrip
 				if (ret > -1)
 					goto found_dfu;
 			}
-			warnx("Device has DFU interface, "
-			    "but has no DFU functional descriptor");
+			printf("Device has DFU interface, but has no DFU functional descriptor\n");
 
 			/* fake version 1.0 */
 			func_dfu.bLength = 7;
@@ -311,7 +316,7 @@ found_dfu:
 				}
 
 				if (libusb_open(dev, &devh)) {
-					warnx("Cannot open DFU device %04x:%04x", desc->idVendor, desc->idProduct);
+					printf("Cannot open DFU device %04x:%04x\n", desc->idVendor, desc->idProduct);
 					break;
 				}
 				if (intf->iInterface != 0)
@@ -321,16 +326,20 @@ found_dfu:
 					ret = -1;
 				if (ret < 1)
 					strcpy(alt_name, "UNKNOWN");
-				if (desc->iSerialNumber != 0) {
-					if (quirks & QUIRK_UTF8_SERIAL) {
-						ret = get_utf8_string_descriptor(devh, desc->iSerialNumber,
-						    (void *)serial_name, MAX_DESC_STR_LEN - 1);
+				if (desc->iSerialNumber != 0)
+				{
+				/*
+					if (quirks & QUIRK_UTF8_SERIAL)
+					{
+						ret = get_utf8_string_descriptor(devh, desc->iSerialNumber,(void *)serial_name, MAX_DESC_STR_LEN - 1);
 						if (ret >= 0)
 							serial_name[ret] = '\0';
-					} else {
-						ret = get_string_descriptor_ascii(devh, desc->iSerialNumber,
-						    (void *)serial_name, MAX_DESC_STR_LEN);
 					}
+					else
+					{
+					*/
+						ret = get_string_descriptor_ascii(devh, desc->iSerialNumber,(void *)serial_name, MAX_DESC_STR_LEN);
+					/*}*/
 				} else {
 					ret = -1;
 				}
@@ -368,16 +377,18 @@ found_dfu:
 				pdfu->busnum = libusb_get_bus_number(dev);
 				pdfu->alt_name = strdup(alt_name);
 				if (pdfu->alt_name == NULL)
-					errx(EX_SOFTWARE, "Out of memory");
+					printf("Out of memory\n");
 				pdfu->serial_name = strdup(serial_name);
 				if (pdfu->serial_name == NULL)
-					errx(EX_SOFTWARE, "Out of memory");
+					printf("Out of memory\n");
 				if (dfu_mode)
 					pdfu->flags |= DFU_IFF_DFU;
+				/*
 				if (pdfu->quirks & QUIRK_FORCE_DFU11) {
 					pdfu->func_dfu.bcdDFUVersion =
 					  libusb_cpu_to_le16(0x0110);
 				}
+				*/
 				pdfu->bMaxPacketSize0 = desc->bMaxPacketSize0;
 
 				/* queue into list */

@@ -1,6 +1,7 @@
+#ifndef DFU_FUNCTIONS_H
+#define DFU_FUNCTIONS_H
 
-#ifndef DFU_FILE_H
-#define DFU_FILE_H
+#include "DFU_usb.h"
 
 #include <stdint.h>
 
@@ -46,15 +47,11 @@ enum prefix_type {
 	LPCDFU_UNENCRYPTED_PREFIX
 };
 
-extern int verbose;
+void DFU_load_file(struct dfu_file *file, enum suffix_req check_suffix, enum prefix_req check_prefix);
+int DFU_bin_download(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address);
+int DFU_download_whole_element(struct dfu_if *dif, unsigned int dwElementAddress,unsigned int dwElementSize, unsigned char *data,int xfer_size);
+const char *DFU_state_to_string( int state );
+const char *DFU_status_to_string(int status);
 
-void dfu_load_file(struct dfu_file *file, enum suffix_req check_suffix, enum prefix_req check_prefix);
-void dfu_store_file(struct dfu_file *file, int write_suffix, int write_prefix);
+#endif /* DFU_FUNCTIONS_H */
 
-void dfu_progress_bar(const char *desc, unsigned long long curr,
-		unsigned long long max);
-void *dfu_malloc(size_t size);
-uint32_t dfu_file_write_crc(int f, uint32_t crc, const void *buf, int size);
-void show_suffix_and_prefix(struct dfu_file *file);
-
-#endif /* DFU_FILE_H */

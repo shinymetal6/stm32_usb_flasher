@@ -10,13 +10,19 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <unistd.h>
+/*
 #include "portable.h"
-#include "dfu.h"
+//#include "dfu.h"
 #include "usb_dfu.h"
 #include "dfu_file.h"
-#include "dfuse.h"
+//#include "dfuse.h"
 #include "dfuse_mem.h"
 #include "quirks.h"
+*/
+#include "DFU_protocol.h"
+#include "DFU_functions.h"
+#include "DFU_usb.h"
+
 
 void DFU_load_file(struct dfu_file *file, enum suffix_req check_suffix, enum prefix_req check_prefix)
 {
@@ -62,10 +68,7 @@ int ret;
 	return dwElementSize;
 }
 
-
-int DFU_download_whole_element(struct dfu_if *dif, unsigned int dwElementAddress,
-			 unsigned int dwElementSize, unsigned char *data,
-			 int xfer_size)
+int DFU_download_whole_element(struct dfu_if *dif, unsigned int dwElementAddress,unsigned int dwElementSize, unsigned char *data,int xfer_size)
 {
 int i;
 int ret;
@@ -104,7 +107,7 @@ int chunk_size;
 	return 0;
 }
 
-const char* dfu_state_to_string( int state )
+const char *DFU_state_to_string( int state )
 {
     const char *message;
 
@@ -186,7 +189,7 @@ static const char *dfu_status_names[] = {
 };
 
 
-const char *dfu_status_to_string(int status)
+const char *DFU_status_to_string(int status)
 {
 	if (status > DFU_STATUS_errSTALLEDPKT)
 		return "INVALID";

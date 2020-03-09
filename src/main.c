@@ -35,12 +35,18 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+/*
 #include "portable.h"
 #include "dfu.h"
 #include "dfu_file.h"
 #include "dfu_load.h"
 #include "dfu_util.h"
 #include "dfuse.h"
+*/
+
+#include "DFU_usb.h"
+#include "DFU_protocol.h"
+#include "DFU_functions.h"
 
 int verbose = 0;
 
@@ -89,7 +95,7 @@ libusb_context *ctx;
 struct dfu_file file;
 struct dfu_status status;
 unsigned int transfer_size = 0;
-const char dfuse_options[32];
+char dfuse_options[32];
 unsigned int address = ADDRESS;
 
 	memset(&file, 0, sizeof(file));
@@ -170,9 +176,9 @@ unsigned int address = ADDRESS;
         status.bState  = DFU_STATE_appIDLE;
         status.iString = 0;
     } else if (err < 0) {
-        errx(EX_IOERR, "error get_status");
+        printf("Error get_status\n");
     } else {
-        printf("state = %s, status = %d\n",dfu_state_to_string(status.bState), status.bStatus);
+        printf("state = %s, status = %d\n",DFU_state_to_string(status.bState), status.bStatus);
     }
 	printf("DFU mode device DFU version %04x\n",libusb_le16_to_cpu(dfu_root->func_dfu.bcdDFUVersion));
 
@@ -203,7 +209,7 @@ unsigned int address = ADDRESS;
                 return -1;
             break;
         default:
-                    errx(EX_IOERR, "Unsupported mode: %u", mode);
+                    printf( "Unsupported mode: %u\n", mode);
                     break;
 	}
 

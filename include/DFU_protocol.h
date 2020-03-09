@@ -1,28 +1,7 @@
-/*
- * dfu-programmer
- *
- * $Id: dfu.h,v 1.2 2005/09/25 01:27:42 schmidtw Exp $
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
+#ifndef DFU_PROTOCOL_H
+#define DFU_PROTOCOL_H
 
-#ifndef DFU_H
-#define DFU_H
-
-#include <libusb-1.0/libusb.h>
-#include "usb_dfu.h"
+#include "DFU_usb.h"
 
 /* DFU states */
 #define STATE_APP_IDLE                  0x00
@@ -103,31 +82,15 @@ struct dfu_if {
     struct dfu_if *next;
 };
 
-int dfu_detach( libusb_device_handle *device,
-                const unsigned short interface,
-                const unsigned short timeout );
-int dfu_download( libusb_device_handle *device,
-                  const unsigned short interface,
-                  const unsigned short length,
-                  const unsigned short transaction,
-                  unsigned char* data );
-int dfu_upload( libusb_device_handle *device,
-                const unsigned short interface,
-                const unsigned short length,
-                const unsigned short transaction,
-                unsigned char* data );
-int dfu_get_status( struct dfu_if *dif,
-                    struct dfu_status *status );
-int dfu_clear_status( libusb_device_handle *device,
-                      const unsigned short interface );
-int dfu_get_state( libusb_device_handle *device,
-                   const unsigned short interface );
-int dfu_abort( libusb_device_handle *device,
-               const unsigned short interface );
-int dfu_abort_to_idle( struct dfu_if *dif);
 
-const char *dfu_state_to_string( int state );
+int DFU_download(struct dfu_if *dif, const unsigned short length,unsigned char *data, unsigned short transaction);
+int DFU_upload( libusb_device_handle *device,const unsigned short interface,const unsigned short length,const unsigned short transaction,unsigned char* data );
+int DFU_get_status( struct dfu_if *dif, struct dfu_status *status );
+int DFU_clear_status( libusb_device_handle *device,const unsigned short interface );
+int DFU_download_data(struct dfu_if *dif, unsigned char *data, int size,int transaction);
+int DFU_set_address(struct dfu_if *dif, unsigned int address);
+int DFU_erase_page(struct dfu_if *dif, unsigned int address);
+int DFU_download_end(struct dfu_if *dif,unsigned int address);
 
-const char *dfu_status_to_string( int status );
 
-#endif /* DFU_H */
+#endif /* DFU_PROTOCOL_H */
