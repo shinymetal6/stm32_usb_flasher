@@ -1,12 +1,5 @@
 /*
- * Functions for detecting DFU USB entities
- *
- * Written by Harald Welte <laforge@openmoko.org>
- * Copyright 2007-2008 by OpenMoko, Inc.
- * Copyright 2013 Hans Petter Selasky <hps@bitfrost.no>
- * Copyright 2016-2019 Tormod Volden <debian.tormod@gmail.com>
- *
- * Based on existing code of dfu-programmer-0.4
+ * DFU_usb_utils.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,17 +21,6 @@
 #include <errno.h>
 #include <string.h>
 #include <libusb-1.0/libusb.h>
-
-/*
-#include "portable.h"
-//#include "dfu.h"
-#include "usb_dfu.h"
-#include "dfu_file.h"
-#include "dfu_load.h"
-#include "dfu_util.h"
-//#include "dfuse.h"
-#include "quirks.h"
-*/
 
 #include "DFU_usb.h"
 #include "DFU_protocol.h"

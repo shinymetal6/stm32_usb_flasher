@@ -1,13 +1,5 @@
 /*
- * dfu-util
- *
- * Copyright 2007-2008 by OpenMoko, Inc.
- * Copyright 2010-2019 Tormod Volden and Stefan Schmidt
- * Copyright 2013-2014 Hans Petter Selasky <hps@bitfrost.no>
- *
- * Written by Harald Welte <laforge@openmoko.org>
- *
- * Based on existing code of dfu-programmer-0.4
+ * stm32_usb_flasher
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,15 +26,6 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-/*
-#include "portable.h"
-#include "dfu.h"
-#include "dfu_file.h"
-#include "dfu_load.h"
-#include "dfu_util.h"
-#include "dfuse.h"
-*/
 
 #include "DFU_usb.h"
 #include "DFU_protocol.h"
@@ -117,7 +100,7 @@ unsigned int address = ADDRESS;
     switch ( mode )
     {
         case  MODE_DOWNLOAD :
-                DFU_load_file(&file, MAYBE_SUFFIX, MAYBE_PREFIX);
+                DFU_load_file(&file);
                 break;
         default : return 0;
     }

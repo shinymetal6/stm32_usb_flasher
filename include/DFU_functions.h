@@ -29,25 +29,7 @@ struct dfu_file {
     uint16_t bcdDevice;
 };
 
-enum suffix_req {
-	NO_SUFFIX,
-	NEEDS_SUFFIX,
-	MAYBE_SUFFIX
-};
-
-enum prefix_req {
-	NO_PREFIX,
-	NEEDS_PREFIX,
-	MAYBE_PREFIX
-};
-
-enum prefix_type {
-	ZERO_PREFIX,
-	LMDFU_PREFIX,
-	LPCDFU_UNENCRYPTED_PREFIX
-};
-
-void DFU_load_file(struct dfu_file *file, enum suffix_req check_suffix, enum prefix_req check_prefix);
+void DFU_load_file(struct dfu_file *file);
 int DFU_bin_download(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address);
 int DFU_download_whole_element(struct dfu_if *dif, unsigned int dwElementAddress,unsigned int dwElementSize, unsigned char *data,int xfer_size);
 const char *DFU_state_to_string( int state );
