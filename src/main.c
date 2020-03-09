@@ -58,110 +58,8 @@ const char *match_iface_alt_name = NULL;
 const char *match_serial = NULL;
 const char *match_serial_dfu = NULL;
 
-static int parse_match_value(const char *str, int default_value)
-{
-	char *remainder;
-	int value;
-
-	if (str == NULL) {
-		value = default_value;
-	} else if (*str == '*') {
-		value = -1; /* Match anything */
-	} else if (*str == '-') {
-		value = 0x10000; /* Impossible vendor/product ID */
-	} else {
-		value = strtoul(str, &remainder, 16);
-		if (remainder == str) {
-			value = default_value;
-		}
-	}
-	return value;
-}
-
-static void parse_vendprod(const char *str)
-{
-	const char *comma;
-	const char *colon;
-
-	/* Default to match any DFU device in runtime or DFU mode */
-	match_vendor = -1;
-	match_product = -1;
-	match_vendor_dfu = -1;
-	match_product_dfu = -1;
-
-	comma = strchr(str, ',');
-	if (comma == str) {
-		/* DFU mode vendor/product being specified without any runtime
-		 * vendor/product specification, so don't match any runtime device */
-		match_vendor = match_product = 0x10000;
-	} else {
-		colon = strchr(str, ':');
-		if (colon != NULL) {
-			++colon;
-			if ((comma != NULL) && (colon > comma)) {
-				colon = NULL;
-			}
-		}
-		match_vendor = parse_match_value(str, match_vendor);
-		match_product = parse_match_value(colon, match_product);
-		if (comma != NULL) {
-			/* Both runtime and DFU mode vendor/product specifications are
-			 * available, so default DFU mode match components to the given
-			 * runtime match components */
-			match_vendor_dfu = match_vendor;
-			match_product_dfu = match_product;
-		}
-	}
-	if (comma != NULL) {
-		++comma;
-		colon = strchr(comma, ':');
-		if (colon != NULL) {
-			++colon;
-		}
-		match_vendor_dfu = parse_match_value(comma, match_vendor_dfu);
-		match_product_dfu = parse_match_value(colon, match_product_dfu);
-	}
-}
-
-static void parse_serial(char *str)
-{
-	char *comma;
-
-	match_serial = str;
-	comma = strchr(str, ',');
-	if (comma == NULL) {
-		match_serial_dfu = match_serial;
-	} else {
-		*comma++ = 0;
-		match_serial_dfu = comma;
-	}
-	if (*match_serial == 0) match_serial = NULL;
-	if (*match_serial_dfu == 0) match_serial_dfu = NULL;
-}
-
-static int parse_number(char *str, char *nmb)
-{
-	char *endptr;
-	long val;
-
-	errno = 0;
-	val = strtol(nmb, &endptr, 0);
-
-	if ((errno == ERANGE && (val == LONG_MAX || val == LONG_MIN))
-		|| (errno != 0 && val == 0) || (*endptr != '\0')) {
-		errx(EX_SOFTWARE, "Something went wrong with the argument of --%s\n", str);
-	}
-
-	if (endptr == nmb) {
-		errx(EX_SOFTWARE, "No digits were found from the argument of --%s\n", str);
-	}
-
-	return (int)val;
-}
-
 
 /* Walk the device tree and print out DFU devices */
-/*
 void DFU_list_interfaces(void)
 {
 	struct dfu_if *pdfu;
@@ -169,7 +67,6 @@ void DFU_list_interfaces(void)
 	for (pdfu = dfu_root; pdfu != NULL; pdfu = pdfu->next)
 		print_dfu_if(pdfu);
 }
-*/
 
 void usage(void)
 {
@@ -196,7 +93,7 @@ const char dfuse_options[32];
 unsigned int address = ADDRESS;
 
 	memset(&file, 0, sizeof(file));
-    sprintf(dfuse_options,"0x%08x",ADDRESS);
+    sprintf(dfuse_options,"0x%08x",address);
     while ((c = getopt (argc, argv, "w:r:oe")) != -1)
     {
         switch (c)
@@ -225,7 +122,7 @@ unsigned int address = ADDRESS;
 		return -1;
 	}
 
-    //probe_devices(ctx);
+    probe_devices(ctx);
 
     //DFU_list_interfaces();
 
@@ -302,8 +199,7 @@ unsigned int address = ADDRESS;
     switch (mode)
     {
         case MODE_DOWNLOAD:
-            //printf("%s : Address 0x%08x , transfer size %d\n",__FUNCTION__,ADDRESS,transfer_size);
-            if (DFU_bin_download(dfu_root, transfer_size, &file,	ADDRESS) < 0)
+            if (DFU_bin_download(dfu_root, transfer_size, &file, address) < 0)
                 return -1;
             break;
         default:
