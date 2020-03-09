@@ -128,7 +128,7 @@ int dfu_upload( libusb_device_handle *device,
  *
  *  return the number of bytes read in or < 0 on an error
  */
-int dfu_get_status( struct dfu_if *dif, struct dfu_status *status )
+int dfu_get_statusOLD( struct dfu_if *dif, struct dfu_status *status )
 {
     unsigned char buffer[6];
     int result;
@@ -343,7 +343,7 @@ int dfu_abort_to_idle(struct dfu_if *dif)
 		errx(EX_IOERR, "Error sending dfu abort request");
 		exit(1);
 	}
-	ret = dfu_get_status(dif, &dst);
+	ret = DFU_get_status(dif, &dst);
 	if (ret < 0) {
 		errx(EX_IOERR, "Error during abort get_status");
 		exit(1);

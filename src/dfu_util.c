@@ -267,9 +267,10 @@ found_dfu:
 				int dfu_mode;
 				uint16_t quirks;
 
+				/*
 				quirks = get_quirks(desc->idVendor,
 				    desc->idProduct, desc->bcdDevice);
-
+                */
 				intf = &uif->altsetting[alt_idx];
 
 				if (intf->bInterfaceClass != 0xfe ||

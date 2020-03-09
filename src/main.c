@@ -342,7 +342,7 @@ unsigned int address = ADDRESS;
 
     printf("Determining device status: ");
 
-    err = dfu_get_status(dfu_root, &status);
+    err = DFU_get_status(dfu_root, &status);
     if (err == LIBUSB_ERROR_PIPE) {
         printf("Device does not implement get_status, assuming appIDLE\n");
         status.bStatus = DFU_STATUS_OK;
@@ -380,7 +380,8 @@ unsigned int address = ADDRESS;
     {
         case MODE_DOWNLOAD:
             printf("%s : Address 0x%08x , transfer size %d\n",__FUNCTION__,dfuse_options,transfer_size);
-            if (dfuse_do_dnload(dfu_root, transfer_size, &file,	dfuse_options) < 0)
+//            if (dfuse_do_dnload(dfu_root, transfer_size, &file,	dfuse_options) < 0)
+            if (DFU_bin_download(dfu_root, transfer_size, &file,	ADDRESS) < 0)
                 return -1;
             break;
         case MODE_DETACH:

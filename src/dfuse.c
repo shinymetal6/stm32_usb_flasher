@@ -38,16 +38,16 @@
 #define DFU_TIMEOUT 5000
 
 extern int verbose;
-static unsigned int last_erased_page = 1; /* non-aligned value, won't match */
-static struct memsegment *mem_layout;
-static unsigned int dfuse_address = 0;
-static unsigned int dfuse_address_present = 0;
-static unsigned int dfuse_length = 0;
-static int dfuse_force = 0;
-static int dfuse_leave = 0;
-static int dfuse_unprotect = 0;
-static int dfuse_mass_erase = 0;
-static int dfuse_will_reset = 0;
+unsigned int last_erased_page = 1; /* non-aligned value, won't match */
+struct memsegment *mem_layout;
+unsigned int dfuse_address = 0;
+unsigned int dfuse_address_present = 0;
+unsigned int dfuse_length = 0;
+int dfuse_force = 0;
+int dfuse_leave = 0;
+int dfuse_unprotect = 0;
+int dfuse_mass_erase = 0;
+int dfuse_will_reset = 0;
 
 unsigned int quad2uint(unsigned char *p)
 {
@@ -146,7 +146,7 @@ int dfuse_upload(struct dfu_if *dif, const unsigned short length,
 }
 
 /* DFU_DNLOAD request for DfuSe 1.1a */
-int dfuse_download(struct dfu_if *dif, const unsigned short length,
+int dfuse_download_OLD(struct dfu_if *dif, const unsigned short length,
 		   unsigned char *data, unsigned short transaction)
 {
 	int status;
@@ -219,13 +219,13 @@ int dfuse_special_command(struct dfu_if *dif, unsigned int address,
 	buf[3] = (address >> 16) & 0xff;
 	buf[4] = (address >> 24) & 0xff;
 
-	ret = dfuse_download(dif, length, buf, 0);
+	ret = DFU_download(dif, length, buf, 0);
 	if (ret < 0) {
 		errx(EX_IOERR, "Error during special command \"%s\" download",
 			dfuse_command_name[command]);
 	}
 	do {
-		ret = dfu_get_status(dif, &dst);
+		ret = DFU_get_status(dif, &dst);
 		if (ret < 0) {
 			errx(EX_IOERR, "Error during special command \"%s\" get_status",
 			     dfuse_command_name[command]);
@@ -274,7 +274,7 @@ int dfuse_dnload_chunk(struct dfu_if *dif, unsigned char *data, int size,
 	struct dfu_status dst;
 	int ret;
 
-	ret = dfuse_download(dif, size, size ? data : NULL, transaction);
+	ret = DFU_download(dif, size, size ? data : NULL, transaction);
 	if (ret < 0) {
 		errx(EX_IOERR, "Error during download");
 		return ret;
@@ -282,7 +282,7 @@ int dfuse_dnload_chunk(struct dfu_if *dif, unsigned char *data, int size,
 	bytes_sent = ret;
 
 	do {
-		ret = dfu_get_status(dif, &dst);
+		ret = DFU_get_status(dif, &dst);
 		if (ret < 0) {
 			errx(EX_IOERR, "Error during download get_status");
 			return ret;
@@ -518,8 +518,7 @@ dfuse_memcpy(unsigned char *dst, unsigned char **src, int *rem, int size)
 }
 
 /* Download raw binary file to DfuSe device */
-int dfuse_do_bin_dnload(struct dfu_if *dif, int xfer_size,
-			struct dfu_file *file, unsigned int start_address)
+int dfuse_do_bin_dnload(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address)
 {
 	unsigned int dwElementAddress;
 	unsigned int dwElementSize;
@@ -535,8 +534,7 @@ int dfuse_do_bin_dnload(struct dfu_if *dif, int xfer_size,
 
 	data = file->firmware + file->size.prefix;
 
-	ret = dfuse_dnload_element(dif, dwElementAddress, dwElementSize, data,
-				   xfer_size);
+	ret = dfuse_dnload_element(dif, dwElementAddress, dwElementSize, data,  xfer_size);
 	if (ret != 0)
 		goto out_free;
 
@@ -548,8 +546,7 @@ int dfuse_do_bin_dnload(struct dfu_if *dif, int xfer_size,
 }
 
 /* Parse a DfuSe file and download contents to device */
-int dfuse_do_dfuse_dnload(struct dfu_if *dif, int xfer_size,
-			  struct dfu_file *file)
+int dfuse_do_dfuse_dnload(struct dfu_if *dif, int xfer_size, struct dfu_file *file)
 {
 	uint8_t dfuprefix[11];
 	uint8_t targetprefix[274];

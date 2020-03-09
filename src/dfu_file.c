@@ -180,31 +180,7 @@ uint32_t dfu_file_write_crc(int f, uint32_t crc, const void *buf, int size)
 	return (crc);
 }
 
-void DFU_load_file(struct dfu_file *file, enum suffix_req check_suffix, enum prefix_req check_prefix)
-{
-FILE *fp;
 
-	file->size.prefix = 0;
-	file->size.suffix = 0;
-
-	file->bcdDFU = 0;
-	file->idVendor = 0xffff; /* wildcard value */
-	file->idProduct = 0xffff; /* wildcard value */
-	file->bcdDevice = 0xffff; /* wildcard value */
-	file->lmdfu_address = 0;
-
-	free(file->firmware);
-    file->firmware = malloc(131072);
-
-    fp = fopen(file->name,"rb");
-    if ( fp )
-    {
-        file->size.total = fread(file->firmware,1,131072,fp);
-        fclose(fp);
-    }
-    else
-        printf("Could not open file %s for reading\n", file->name);
-}
 #if 0
 void OLDdfu_load_file(struct dfu_file *file, enum suffix_req check_suffix, enum prefix_req check_prefix)
 {
