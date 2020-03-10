@@ -82,15 +82,15 @@ struct dfu_if {
     struct dfu_if *next;
 };
 
-
 int DFU_download(struct dfu_if *dif, const unsigned short length,unsigned char *data, unsigned short transaction);
-int DFU_upload( libusb_device_handle *device,const unsigned short interface,const unsigned short length,const unsigned short transaction,unsigned char* data );
+int DFU_upload( struct dfu_if *dif, const unsigned short length,const unsigned short transaction,unsigned char* data );
 int DFU_get_status( struct dfu_if *dif, struct dfu_status *status );
 int DFU_clear_status( libusb_device_handle *device,const unsigned short interface );
 int DFU_download_data(struct dfu_if *dif, unsigned char *data, int size,int transaction);
 int DFU_set_address(struct dfu_if *dif, unsigned int address);
 int DFU_erase_page(struct dfu_if *dif, unsigned int address);
 int DFU_download_end(struct dfu_if *dif,unsigned int address);
-
+int DFU_mass_erase(struct dfu_if *dif);
+int DFU_go_to_idle(struct dfu_if *dif);
 
 #endif /* DFU_PROTOCOL_H */

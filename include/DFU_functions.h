@@ -7,18 +7,14 @@
 
 struct dfu_file {
     /* File name */
-    const char *name;
-    /* Pointer to file loaded into memory */
-    uint8_t *firmware;
-    /* Different sizes */
+    const char *name;    /* Pointer to file loaded into memory */
+    uint8_t *firmware;   /* Different sizes */
     struct {
 	int total;
 	int prefix;
 	int suffix;
-    } size;
-    /* From prefix fields */
-    uint32_t lmdfu_address;
-    /* From prefix fields */
+    } size;             /* From prefix fields */
+    uint32_t lmdfu_address;    /* From prefix fields */
     uint32_t prefix_type;
 
     /* From DFU suffix fields */
@@ -29,8 +25,11 @@ struct dfu_file {
     uint16_t bcdDevice;
 };
 
+#define     BIN_DATA_MAX_SIZE   131072
+
 void DFU_load_file(struct dfu_file *file);
 int DFU_bin_download(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address);
+int DFU_bin_upload(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address, unsigned int max_transfers);
 int DFU_download_whole_element(struct dfu_if *dif, unsigned int dwElementAddress,unsigned int dwElementSize, unsigned char *data,int xfer_size);
 const char *DFU_state_to_string( int state );
 const char *DFU_status_to_string(int status);

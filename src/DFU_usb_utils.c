@@ -281,8 +281,7 @@ found_dfu:
 				if (desc->idVendor == 0x0b0e && intf->bInterfaceProtocol == 0 && cfg->bNumInterfaces == 1)
 					dfu_mode = 1;
 
-				if (dfu_mode &&
-				    match_iface_alt_index > -1 && match_iface_alt_index != intf->bAlternateSetting)
+				if (dfu_mode && match_iface_alt_index > -1 && match_iface_alt_index != intf->bAlternateSetting)
 					continue;
 
 				if (dfu_mode) {

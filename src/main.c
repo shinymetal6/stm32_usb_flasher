@@ -59,12 +59,11 @@ void DFU_list_interfaces(void)
 
 void usage(void)
 {
-    printf("stm32_serial_flash [-ex] [-w <filename>]\n");
-    printf("    -e : erase\n");
+    printf("stm32_serial_flash [-ex] [-w <filename>] [-r <filename> [ -n <number of bytes to read]] ]\n");
+    printf("    -e : mass erase\n");
     printf("    -w <file name> : writes device with file <filename>, binary only\n");
-    printf("    -x : execute from 0x08000000\n");
-    printf("    -p <serial device>: use <serial device> instead/dev/ttyUSB1\n");
-    printf("    -u : unprotect\n");
+    printf("    -r <file name> : reads device and store to file <filename>, binary only\n");
+    printf("    -n <number of bytes>: valid only with -r, default is %d\n",BIN_DATA_MAX_SIZE);
 }
 
 #define ADDRESS 0x08000000
@@ -72,7 +71,7 @@ void usage(void)
 int main(int argc, char * argv[])
 {
 char    c;
-int ret , err;
+int ret , err , max_transfers;
 enum mode mode = MODE_NONE;
 libusb_context *ctx;
 struct dfu_file file;
@@ -83,24 +82,38 @@ unsigned int address = ADDRESS;
 
 	memset(&file, 0, sizeof(file));
     sprintf(dfuse_options,"0x%08x",address);
-    while ((c = getopt (argc, argv, "w:r:oe")) != -1)
+    while ((c = getopt (argc, argv, ":w:r:n:e")) != -1)
     {
         switch (c)
         {
-            case 'e'    :   //DFU_erase(dfudev);
+            case 'e'    :   mode = MODE_MASS_ERASE;
                             break;
             case 'w'    :   file.name= optarg;
                             mode = MODE_DOWNLOAD;
+                            break;
+            case 'n'    :   max_transfers = atoi(optarg);
+                            break;
+            case 'r'    :   file.name= optarg;
+                            mode = MODE_UPLOAD;
                             break;
             default     :   usage(); return -1;
         }
     }
 
+    if ( argc == 1 )
+    {
+        usage();
+        return -1;
+    }
     match_iface_alt_index = 0;
     switch ( mode )
     {
         case  MODE_DOWNLOAD :
                 DFU_load_file(&file);
+                break;
+        case  MODE_UPLOAD :
+                break;
+        case  MODE_MASS_ERASE :
                 break;
         default : return 0;
     }
@@ -110,7 +123,7 @@ unsigned int address = ADDRESS;
 		printf("Unable to initialize libusb: %s\n", libusb_error_name(ret));
 		return -1;
 	}
-
+    printf("%d\n",max_transfers);
     probe_devices(ctx);
 
     //DFU_list_interfaces();
@@ -191,9 +204,16 @@ unsigned int address = ADDRESS;
             if (DFU_bin_download(dfu_root, transfer_size, &file, address) < 0)
                 return -1;
             break;
+        case MODE_MASS_ERASE:
+            DFU_mass_erase(dfu_root);
+            printf( "Device erased\n");
+            break;
+        case  MODE_UPLOAD :
+                DFU_bin_upload(dfu_root, transfer_size, &file, address,max_transfers);
+                break;
         default:
-                    printf( "Unsupported mode: %u\n", mode);
-                    break;
+            printf( "Unsupported mode: %u\n", mode);
+            break;
 	}
 
 	libusb_close(dfu_root->dev_handle);

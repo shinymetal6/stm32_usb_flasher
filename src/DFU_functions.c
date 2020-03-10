@@ -17,9 +17,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <libusb-1.0/libusb.h>
-
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
@@ -31,7 +29,6 @@
 #include "DFU_protocol.h"
 #include "DFU_functions.h"
 #include "DFU_usb.h"
-
 
 void DFU_load_file(struct dfu_file *file)
 {
@@ -47,12 +44,12 @@ FILE *fp;
 	file->lmdfu_address = 0;
 
 	free(file->firmware);
-    file->firmware = malloc(131072);
+    file->firmware = malloc(BIN_DATA_MAX_SIZE);
 
     fp = fopen(file->name,"rb");
     if ( fp )
     {
-        file->size.total = fread(file->firmware,1,131072,fp);
+        file->size.total = fread(file->firmware,1,BIN_DATA_MAX_SIZE,fp);
         fclose(fp);
     }
     else
@@ -83,6 +80,7 @@ int i;
 int ret;
 int page_size;
 int chunk_size;
+FILE *fp;
 
     page_size = 2048;
     printf("\nErase\n");
@@ -94,6 +92,12 @@ int chunk_size;
     }
 	printf("\nDownload\n");
 
+    fp = fopen("dumpfile.bin","wb");
+    if ( !fp )
+    {
+        printf("File dumpfile.bin can't be opened\n");
+        exit(0);
+    }
 	/* Second pass: Write data to (erased) pages */
 	for (i = 0; i < (int)dwElementSize; i += xfer_size)
 	{
@@ -110,8 +114,10 @@ int chunk_size;
 			return -1;
 		}
         fflush(stdout);
+        fwrite(data + i,1,chunk_size,fp);
 	}
 	printf("\nDone\n");
+    fclose(fp);
     ret = DFU_download_end(dif,dwElementAddress);
 	return 0;
 }
@@ -205,5 +211,40 @@ const char *DFU_status_to_string(int status)
 	return dfu_status_names[status];
 }
 
+int DFU_bin_upload(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address, unsigned int max_transfers)
+{
+unsigned int transfers = BIN_DATA_MAX_SIZE;
+unsigned int blocks;
+int i;
+FILE *fp;
 
+    fp = fopen(file->name,"wb");
+    if ( !fp )
+    {
+        printf("File %s can't be opened\n",file->name);
+        return -1;
+    }
 
+    if ( max_transfers != 0 )
+        transfers = max_transfers;
+    blocks = transfers/xfer_size;
+
+    file->firmware = malloc(transfers);
+    free(file->firmware);
+
+    if ( DFU_set_address(dif, start_address) == -1)
+        return -1;
+    if ( DFU_go_to_idle(dif) == -1)
+        return -1;
+    for(i=0;i<blocks;i++)
+    {
+        printf ( "Reading at address 0x%08x\r",start_address + blocks*xfer_size);
+        if ( DFU_upload( dif,xfer_size,i+2,file->firmware+i*xfer_size ) == -1)
+            return -1;
+        fwrite(file->firmware+i*xfer_size,1,xfer_size,fp);
+    }
+    printf("\nDone\n");
+    fclose(fp);
+    DFU_go_to_idle(dif);
+    return 0;
+}
