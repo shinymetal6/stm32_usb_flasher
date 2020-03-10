@@ -31,7 +31,7 @@
 #include "DFU_protocol.h"
 #include "DFU_functions.h"
 
-int verbose = 0;
+//int verbose = 0;
 
 struct dfu_if *dfu_root = NULL;
 
@@ -66,45 +66,13 @@ void usage(void)
     printf("    -n <number of bytes>: valid only with -r, default is %d\n",BIN_DATA_MAX_SIZE);
 }
 
-#define ADDRESS 0x08000000
-
-int main(int argc, char * argv[])
-{
-char    c;
-int ret , err , max_transfers;
-enum mode mode = MODE_NONE;
 libusb_context *ctx;
-struct dfu_file file;
-struct dfu_status status;
 unsigned int transfer_size = 0;
-char dfuse_options[32];
-unsigned int address = ADDRESS;
 
-	memset(&file, 0, sizeof(file));
-    sprintf(dfuse_options,"0x%08x",address);
-    while ((c = getopt (argc, argv, ":w:r:n:e")) != -1)
-    {
-        switch (c)
-        {
-            case 'e'    :   mode = MODE_MASS_ERASE;
-                            break;
-            case 'w'    :   file.name= optarg;
-                            mode = MODE_DOWNLOAD;
-                            break;
-            case 'n'    :   max_transfers = atoi(optarg);
-                            break;
-            case 'r'    :   file.name= optarg;
-                            mode = MODE_UPLOAD;
-                            break;
-            default     :   usage(); return -1;
-        }
-    }
-
-    if ( argc == 1 )
-    {
-        usage();
-        return -1;
-    }
+int usb_init(void)
+{
+int ret , err;
+struct dfu_status status;
 
     match_iface_alt_index = 0;
     if ((ret = libusb_init(&ctx)))
@@ -159,9 +127,12 @@ unsigned int address = ADDRESS;
         status.bwPollTimeout = 0;
         status.bState  = DFU_STATE_appIDLE;
         status.iString = 0;
-    } else if (err < 0) {
+    } else if (err < 0)
+    {
         printf("Error get_status\n");
-    } else {
+    }
+    else
+    {
         printf("state = %s, status = %d\n",DFU_state_to_string(status.bState), status.bStatus);
     }
 	printf("DFU mode device DFU version %04x\n",libusb_le16_to_cpu(dfu_root->func_dfu.bcdDFUVersion));
@@ -185,6 +156,46 @@ unsigned int address = ADDRESS;
         printf("Transfer size not specified\n");
         return -1;
     }
+    return 0;
+}
+
+int main(int argc, char * argv[])
+{
+char    c;
+int max_transfers;
+enum mode mode = MODE_NONE;
+struct dfu_file file;
+unsigned int address = ADDRESS;
+
+    transfer_size = 0;
+	memset(&file, 0, sizeof(file));
+
+    while ((c = getopt (argc, argv, ":w:r:n:e")) != -1)
+    {
+        switch (c)
+        {
+            case 'e'    :   mode = MODE_MASS_ERASE;
+                            break;
+            case 'w'    :   file.name= optarg;
+                            mode = MODE_DOWNLOAD;
+                            break;
+            case 'n'    :   max_transfers = atoi(optarg);
+                            break;
+            case 'r'    :   file.name= optarg;
+                            mode = MODE_UPLOAD;
+                            break;
+            default     :   usage(); return -1;
+        }
+    }
+
+    if ( argc == 1 )
+    {
+        usage();
+        return -1;
+    }
+
+    if ( usb_init() == -1 )
+        return -1;
 
     switch (mode)
     {

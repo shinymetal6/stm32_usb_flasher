@@ -26,6 +26,7 @@ struct dfu_file {
 };
 
 #define     BIN_DATA_MAX_SIZE   131072
+#define ADDRESS 0x08000000
 
 void DFU_load_file(struct dfu_file *file);
 int DFU_bin_download(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address);
