@@ -176,10 +176,11 @@ int ret;
     if ( size == 0 )
     {
         printf("\n\n\nsize = 0\n");
-        return 0;
+        return -1;
     }
 	ret = DFU_download(dif, size, size ? data : NULL, transaction);
-	if (ret < 0) {
+	if (ret < 0)
+	{
 		printf("Error during download\n");
 		return ret;
 	}

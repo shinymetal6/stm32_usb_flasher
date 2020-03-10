@@ -105,25 +105,13 @@ unsigned int address = ADDRESS;
         usage();
         return -1;
     }
-    match_iface_alt_index = 0;
-    switch ( mode )
-    {
-        case  MODE_DOWNLOAD :
-                DFU_load_file(&file);
-                break;
-        case  MODE_UPLOAD :
-                break;
-        case  MODE_MASS_ERASE :
-                break;
-        default : return 0;
-    }
 
+    match_iface_alt_index = 0;
     if ((ret = libusb_init(&ctx)))
 	{
 		printf("Unable to initialize libusb: %s\n", libusb_error_name(ret));
 		return -1;
 	}
-    printf("%d\n",max_transfers);
     probe_devices(ctx);
 
     //DFU_list_interfaces();
@@ -201,6 +189,7 @@ unsigned int address = ADDRESS;
     switch (mode)
     {
         case MODE_DOWNLOAD:
+            DFU_load_file(&file);
             if (DFU_bin_download(dfu_root, transfer_size, &file, address) < 0)
                 return -1;
             break;
@@ -209,10 +198,11 @@ unsigned int address = ADDRESS;
             printf( "Device erased\n");
             break;
         case  MODE_UPLOAD :
-                DFU_bin_upload(dfu_root, transfer_size, &file, address,max_transfers);
-                break;
+            DFU_bin_upload(dfu_root, transfer_size, &file, address,max_transfers);
+            break;
         default:
             printf( "Unsupported mode: %u\n", mode);
+            usage();
             break;
 	}
 
