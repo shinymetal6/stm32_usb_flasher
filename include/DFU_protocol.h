@@ -1,8 +1,6 @@
 #ifndef DFU_PROTOCOL_H
 #define DFU_PROTOCOL_H
 
-#include "DFU_usb.h"
-
 /* DFU states */
 #define STATE_APP_IDLE                  0x00
 #define STATE_APP_DETACH                0x01
@@ -44,16 +42,41 @@
 #define DFU_GETSTATE    5
 #define DFU_ABORT       6
 
-/* DFU interface */
-#define DFU_IFF_DFU             0x0001  /* DFU Mode, (not Runtime) */
+enum dfu_state {
+        DFU_STATE_appIDLE               = 0,
+        DFU_STATE_appDETACH             = 1,
+        DFU_STATE_dfuIDLE               = 2,
+        DFU_STATE_dfuDNLOAD_SYNC        = 3,
+        DFU_STATE_dfuDNBUSY             = 4,
+        DFU_STATE_dfuDNLOAD_IDLE        = 5,
+        DFU_STATE_dfuMANIFEST_SYNC      = 6,
+        DFU_STATE_dfuMANIFEST           = 7,
+        DFU_STATE_dfuMANIFEST_WAIT_RST  = 8,
+        DFU_STATE_dfuUPLOAD_IDLE        = 9,
+        DFU_STATE_dfuERROR              = 10
+};
 
-/* This is based off of DFU_GETSTATUS
- *
- *  1 unsigned byte bStatus
- *  3 unsigned byte bwPollTimeout
- *  1 unsigned byte bState
- *  1 unsigned byte iString
-*/
+enum mode {
+        MODE_NONE,
+        MODE_VERSION,
+        MODE_LIST,
+        MODE_SUPPORTED_COMMANDS,
+        MODE_DETACH,
+        MODE_MASS_ERASE,
+        MODE_UPLOAD,
+        MODE_DOWNLOAD
+};
+
+
+/* DFU general commands */
+#define DFU_SET_ADDRESS_CMD         0x21
+#define DFU_SET_ADDRESS_CMD_LEN     5
+#define DFU_ERASE_CMD               0x41
+#define DFU_ERASE_CMD_LEN           5
+#define DFU_MASS_ERASE_CMD          0x41
+#define DFU_MASS_ERASE_CMD_LEN      1
+#define DFU_EXIT_DFU_CMD            0x01
+#define DFU_EXIT_DFU_CMD_LEN        0
 
 struct dfu_status {
     unsigned char bStatus;
@@ -62,35 +85,27 @@ struct dfu_status {
     unsigned char iString;
 };
 
-struct dfu_if {
-    struct usb_dfu_func_descriptor func_dfu;
-    uint16_t quirks;
-    uint16_t busnum;
-    uint16_t devnum;
-    uint16_t vendor;
-    uint16_t product;
-    uint16_t bcdDevice;
-    uint8_t configuration;
-    uint8_t interface;
-    uint8_t altsetting;
-    uint8_t flags;
-    uint8_t bMaxPacketSize0;
-    char *alt_name;
-    char *serial_name;
-    libusb_device *dev;
-    libusb_device_handle *dev_handle;
-    struct dfu_if *next;
-};
+#define VID 0x0483
+#define PID 0xdf11
 
-int DFU_download(struct dfu_if *dif, const unsigned short length,unsigned char *data, unsigned short transaction);
-int DFU_upload( struct dfu_if *dif, const unsigned short length,const unsigned short transaction,unsigned char* data );
-int DFU_get_status( struct dfu_if *dif, struct dfu_status *status );
-int DFU_clear_status( libusb_device_handle *device,const unsigned short interface );
-int DFU_download_data(struct dfu_if *dif, unsigned char *data, int size,int transaction);
-int DFU_set_address(struct dfu_if *dif, unsigned int address);
-int DFU_erase_page(struct dfu_if *dif, unsigned int address);
-int DFU_download_end(struct dfu_if *dif,unsigned int address);
-int DFU_mass_erase(struct dfu_if *dif);
-int DFU_go_to_idle(struct dfu_if *dif);
+#define DFU_TIMEOUT 5000
+
+#define     BIN_DATA_MAX_SIZE   131072
+#define     ERASE_PAGE_SIZE     2048
+#define     WRITE_PAGE_SIZE     1024
+#define     ADDRESS 0x08000000
+
+int DFU_download(libusb_device_handle *handle, const unsigned short wLength,unsigned char *data, unsigned short wValue);
+int DFU_upload( libusb_device_handle *handle, const unsigned short wLength,const unsigned short wValue,unsigned char* data );
+int DFU_get_status( libusb_device_handle *handle, struct dfu_status *status );
+int DFU_get_state( libusb_device_handle *handle );
+int DFU_clear_status( libusb_device_handle *handle );
+int DFU_download_data(libusb_device_handle *handle, unsigned char *data, int size,int transaction);
+int DFU_set_address(libusb_device_handle *handle, unsigned int address);
+int DFU_erase_page(libusb_device_handle *handle, unsigned int address);
+int DFU_download_end(libusb_device_handle *handle, unsigned int address);
+int DFU_mass_erase(libusb_device_handle *handle);
+int DFU_go_to_idle(libusb_device_handle *handle);
+int DFU_general_command(libusb_device_handle *handle, unsigned int address , unsigned char command, unsigned int cmdlen);
 
 #endif /* DFU_PROTOCOL_H */

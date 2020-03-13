@@ -27,154 +27,206 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "DFU_usb.h"
 #include "DFU_protocol.h"
 #include "DFU_functions.h"
 
-//int verbose = 0;
-
-struct dfu_if *dfu_root = NULL;
-
-char *match_path = NULL;
-int match_vendor = -1;
-int match_product = -1;
-int match_vendor_dfu = -1;
-int match_product_dfu = -1;
-int match_config_index = -1;
-int match_iface_index = -1;
-int match_iface_alt_index = -1;
-const char *match_iface_alt_name = NULL;
-const char *match_serial = NULL;
-const char *match_serial_dfu = NULL;
-
-
-/* Walk the device tree and print out DFU devices */
-void DFU_list_interfaces(void)
-{
-	struct dfu_if *pdfu;
-
-	for (pdfu = dfu_root; pdfu != NULL; pdfu = pdfu->next)
-		print_dfu_if(pdfu);
-}
+struct libusb_device_handle *handle;
+int device_max_transfers;
 
 void usage(void)
 {
     printf("stm32_serial_flash [-ex] [-w <filename>] [-r <filename> [ -n <number of bytes to read]] ]\n");
+    printf("    -s : target supported commands\n");
     printf("    -e : mass erase\n");
     printf("    -w <file name> : writes device with file <filename>, binary only\n");
     printf("    -r <file name> : reads device and store to file <filename>, binary only\n");
     printf("    -n <number of bytes>: valid only with -r, default is %d\n",BIN_DATA_MAX_SIZE);
 }
 
-libusb_context *ctx;
-unsigned int transfer_size = 0;
-
-int usb_init(void)
+static void print_devs(libusb_device **devs)
 {
-int ret , err;
-struct dfu_status status;
+	libusb_device *dev;
+	int i = 0;
 
-    match_iface_alt_index = 0;
-    if ((ret = libusb_init(&ctx)))
+	while ((dev = devs[i++]) != NULL)
 	{
-		printf("Unable to initialize libusb: %s\n", libusb_error_name(ret));
-		return -1;
+		struct libusb_device_descriptor desc;
+		int r = libusb_get_device_descriptor(dev, &desc);
+		if (r < 0)
+		{
+			fprintf(stderr, "failed to get device descriptor");
+			return;
+		}
+        if ( (desc.idVendor == VID) && (desc.idProduct == PID))
+            printf("Found device %04x:%04x %d configurations\n",	desc.idVendor, desc.idProduct, desc.bNumConfigurations);
 	}
-    probe_devices(ctx);
+}
 
-    //DFU_list_interfaces();
 
-	if (dfu_root == NULL)
-	{
-        printf("No DFU capable USB device available\n");
-		return -1;
-	}
+void spr(unsigned char *tbuf )
+{
+int i,outlen;
+    outlen = tbuf[0] - 2;
+    outlen +=2;
+    outlen = tbuf[0];
 
-	/* We have exactly one device. Its libusb_device is now in dfu_root->dev */
+    printf("HEX:\n");
 
-	//printf("Opening DFU capable USB device...\n");
-	ret = libusb_open(dfu_root->dev, &dfu_root->dev_handle);
-	if (ret || !dfu_root->dev_handle)
-	{
-		printf("Cannot open device: %s\n", libusb_error_name(ret));
-		return -1;
-	}
-
-	//printf("ID %04x:%04x\n", dfu_root->vendor, dfu_root->product);
-	//printf("Run-time device DFU version %04x\n",libusb_le16_to_cpu(dfu_root->func_dfu.bcdDFUVersion));
-
-    //printf("Claiming USB DFU Runtime Interface...\n");
-    ret = libusb_claim_interface(dfu_root->dev_handle, dfu_root->interface);
-    if (ret < 0)
+    for(i=2;i<outlen;i+=2)
     {
-        printf("Cannot claim interface %d: %s\n",dfu_root->interface, libusb_error_name(ret));
-		return -1;
+        printf("0x%02x ",tbuf[i]);
     }
+    printf("\nASCII:\n");
 
-    ret = libusb_set_interface_alt_setting(dfu_root->dev_handle, dfu_root->interface, 0);
-    if (ret < 0)
+    for(i=2;i<outlen;i+=2)
     {
-        printf("Cannot set alt interface zero: %s\n", libusb_error_name(ret));
-		return -1;
+        printf("%c",tbuf[i]);
     }
+    printf("\n");
+}
 
-    printf("Determining device status: ");
 
-    err = DFU_get_status(dfu_root, &status);
-    if (err == LIBUSB_ERROR_PIPE) {
-        printf("Device does not implement get_status, assuming appIDLE\n");
-        status.bStatus = DFU_STATUS_OK;
-        status.bwPollTimeout = 0;
-        status.bState  = DFU_STATE_appIDLE;
-        status.iString = 0;
-    } else if (err < 0)
-    {
-        printf("Error get_status\n");
-    }
-    else
-    {
-        printf("state = %s, status = %d\n",DFU_state_to_string(status.bState), status.bStatus);
-    }
-	printf("DFU mode device DFU version %04x\n",libusb_le16_to_cpu(dfu_root->func_dfu.bcdDFUVersion));
+char *xtract(char *line_in , char *first_marker , char *second_marker)
+{
+char line[256];  // where we will put a copy of the input
+char *sub;
 
-	/*if (dfu_root->func_dfu.bcdDFUVersion == libusb_cpu_to_le16(0x11a))
-		dfuse_device = 1;
-    */
-	/* If not overridden by the user */
-    transfer_size = libusb_le16_to_cpu(dfu_root->func_dfu.wTransferSize);
-    if (transfer_size)
+    strcpy(line, line_in);
+    sub = strtok(line,first_marker); // find the first double quote
+    sub = strtok(NULL,second_marker);   // find the second double quote
+    return sub;
+}
+
+
+void list_device_characteristics(unsigned char *data , int len )
+{
+char address[128] , size[128];
+int intsize;
+
+    if ( data[0] == '@')
     {
-        printf("Device returned transfer size %i\n",transfer_size);
-        if (transfer_size < dfu_root->bMaxPacketSize0)
+        if ( strncmp((char *)data,"@Internal Flash",15) == 0 )
         {
-            transfer_size = dfu_root->bMaxPacketSize0;
-            printf("Adjusted transfer size to %i\n", transfer_size);
+            printf("Data : %s\n",data);
+            printf("Internal Flash : ");
+            sprintf(address,"%s", xtract((char *)data,"/","*"));
+            size[0] = address[11];
+            size[1] = address[12];
+            if ( (address[13] > 0x2f) && ( address[13] < 0x3a))
+                size[2] = address[12];
+            else
+                size[2] = 0;
+            address[10]=0;
+            device_max_transfers = atoi(size)*1024;
+            printf("%s %d bytes\n",address,device_max_transfers);
+        }
+        if ( strncmp((char *)data,"@Option Bytes",13) == 0 )
+        {
+            printf("Option Bytes   : ");
+            sprintf(address,"%s", xtract((char *)data,"/","*"));
+            size[0] = address[11];
+            size[1] = address[12];
+            if ( (address[13] > 0x2f) && ( address[13] < 0x3a))
+                size[2] = address[12];
+            else
+                size[2] = 0;
+            address[10]=0;
+            intsize = atoi(size)*1024;
+            printf("%s %d bytes\n",address,intsize);
+        }
+        if ( strncmp((char *)data,"@OTP Memory",11) == 0 )
+        {
+            printf("OTP Memory     : ");
+            sprintf(address,"%s", xtract((char *)data,"/","*"));
+            size[0] = address[11];
+            size[1] = address[12];
+            if ( (address[13] > 0x2f) && ( address[13] < 0x3a))
+                size[2] = address[12];
+            else
+                size[2] = 0;
+            address[10]=0;
+            intsize = atoi(size)*1024;
+            printf("%s %d bytes\n",address,intsize);
         }
     }
-    else
+}
+
+int DFU_describe_interface(void)
+{
+int     cnt,r,i,j,k;
+libusb_device **devs;
+unsigned char tbuf[255] , data[255];
+
+	cnt = libusb_get_device_list(NULL, &devs);
+	if (cnt < 0)
+	{
+		libusb_exit(NULL);
+		return -1;
+	}
+    print_devs(devs);
+    r = 0;
+    while( r < 255 )
     {
-        printf("Transfer size not specified\n");
-        return -1;
+        for(i=0;i<10;i++)
+        {
+            r = libusb_get_string_descriptor(handle, i, 0, tbuf, sizeof(tbuf));
+            if (( r < 255 ) && (r > 4 ))
+            {
+                k = 0;
+                bzero(data,sizeof(data));
+                for(j=2;j<tbuf[0];j+=2)
+                {
+                    data[k] = tbuf[j];
+                    k++;
+                }
+                list_device_characteristics(data,tbuf[0]);
+            }
+        }
     }
     return 0;
+}
+
+int dfu_usb_init(void)
+{
+	libusb_init(NULL);
+	if((handle = libusb_open_device_with_vid_pid(NULL, VID, PID)) == NULL)
+	{
+		printf("Device not found or not in DFU mode\n");
+		return -1;
+	}
+	libusb_claim_interface(handle, 0);
+	libusb_detach_kernel_driver(handle, 0);
+
+    printf("Found device 0x%04x:0x%04x\n",VID, PID);
+	return 0;
+}
+
+static int dfu_usb_deInit()
+{
+	if(handle != NULL)
+		libusb_release_interface (handle, 0);
+	libusb_exit(NULL);
+	return 0;
 }
 
 int main(int argc, char * argv[])
 {
 char    c;
-int max_transfers;
+int max_transfers=0;
 enum mode mode = MODE_NONE;
 struct dfu_file file;
 unsigned int address = ADDRESS;
 
-    transfer_size = 0;
+
 	memset(&file, 0, sizeof(file));
 
-    while ((c = getopt (argc, argv, ":w:r:n:e")) != -1)
+    while ((c = getopt (argc, argv, ":w:r:n:es")) != -1)
     {
         switch (c)
         {
             case 'e'    :   mode = MODE_MASS_ERASE;
+                            break;
+            case 's'    :   mode = MODE_SUPPORTED_COMMANDS;
                             break;
             case 'w'    :   file.name= optarg;
                             mode = MODE_DOWNLOAD;
@@ -194,22 +246,28 @@ unsigned int address = ADDRESS;
         return -1;
     }
 
-    if ( usb_init() == -1 )
+    if ( dfu_usb_init() == -1 )
         return -1;
+    DFU_describe_interface();
+
+    if ( max_transfers != 0 )
+        device_max_transfers = max_transfers;
 
     switch (mode)
     {
         case MODE_DOWNLOAD:
             DFU_load_file(&file);
-            if (DFU_bin_download(dfu_root, transfer_size, &file, address) < 0)
-                return -1;
+            DFU_bin_download(handle, WRITE_PAGE_SIZE, &file, address);
             break;
         case MODE_MASS_ERASE:
-            DFU_mass_erase(dfu_root);
-            printf( "Device erased\n");
+            if ( DFU_mass_erase(handle) != -1 )
+                printf( "Device erased\n");
             break;
         case  MODE_UPLOAD :
-            DFU_bin_upload(dfu_root, transfer_size, &file, address,max_transfers);
+            DFU_bin_upload(handle, WRITE_PAGE_SIZE, &file, address,device_max_transfers);
+            break;
+        case  MODE_SUPPORTED_COMMANDS :
+            DFU_get_supported_commands(handle);
             break;
         default:
             printf( "Unsupported mode: %u\n", mode);
@@ -217,7 +275,10 @@ unsigned int address = ADDRESS;
             break;
 	}
 
+    dfu_usb_deInit();
+/*
 	libusb_close(dfu_root->dev_handle);
 	dfu_root->dev_handle = NULL;
 	libusb_exit(ctx);
+	*/
 }

@@ -28,28 +28,27 @@
 
 #include "DFU_protocol.h"
 #include "DFU_functions.h"
-#include "DFU_usb.h"
 
 void DFU_load_file(struct dfu_file *file)
 {
 FILE *fp;
-
+/*
 	file->size.prefix = 0;
 	file->size.suffix = 0;
 
 	file->bcdDFU = 0;
-	file->idVendor = 0xffff; /* wildcard value */
-	file->idProduct = 0xffff; /* wildcard value */
-	file->bcdDevice = 0xffff; /* wildcard value */
+	file->idVendor = 0xffff;
+	file->idProduct = 0xffff;
+	file->bcdDevice = 0xffff;
 	file->lmdfu_address = 0;
-
+*/
 	free(file->firmware);
     file->firmware = malloc(BIN_DATA_MAX_SIZE);
 
     fp = fopen(file->name,"rb");
     if ( fp )
     {
-        file->size.total = fread(file->firmware,1,BIN_DATA_MAX_SIZE,fp);
+        file->file_len = fread(file->firmware,1,BIN_DATA_MAX_SIZE,fp);
         fclose(fp);
     }
     else
@@ -57,40 +56,42 @@ FILE *fp;
 }
 
 
-int DFU_bin_download(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address)
+int DFU_bin_download(libusb_device_handle *handle, int xfer_size, struct dfu_file *file, unsigned int start_address)
 {
 unsigned int dwElementAddress;
 unsigned int dwElementSize;
 unsigned char *data;
 int ret;
 	dwElementAddress = start_address;
-	dwElementSize = file->size.total - file->size.suffix - file->size.prefix;
+	dwElementSize = file->file_len;
 
-	data = file->firmware + file->size.prefix;
+	data = file->firmware;
 
-	ret = DFU_download_whole_element(dif, dwElementAddress, dwElementSize, data,  xfer_size);
+	ret = DFU_download_whole_element(handle, dwElementAddress, dwElementSize, data,  xfer_size);
 	if (ret != 0)
 		return -1;
 	return dwElementSize;
 }
 
-int DFU_download_whole_element(struct dfu_if *dif, unsigned int dwElementAddress,unsigned int dwElementSize, unsigned char *data,int xfer_size)
+int DFU_download_whole_element(libusb_device_handle *handle, unsigned int dwElementAddress,unsigned int dwElementSize, unsigned char *data,int xfer_size)
 {
 int i;
 int ret;
-int page_size;
-int chunk_size;
+int number_of_blocks;
+int chunk_size,last_chunk_size;
 FILE *fp;
-
-    page_size = 2048;
-    printf("\nErase\n");
-    for (i = dwElementAddress; i < dwElementAddress + dwElementSize + 1; i += page_size)
+/*
+    for (i = dwElementAddress; i < dwElementAddress + dwElementSize + 1; i += ERASE_PAGE_SIZE)
     {
         printf ( "Erasing address 0x%08x\r",i);
-        DFU_erase_page(dif, i);
         fflush(stdout);
+        if ( DFU_erase_page(handle, i) == -1)
+            return -1;
     }
-	printf("\nDownload\n");
+    */
+    printf ( "Mass erase\r");
+    fflush(stdout);
+    DFU_mass_erase(handle);
 
     fp = fopen("dumpfile.bin","wb");
     if ( !fp )
@@ -98,126 +99,51 @@ FILE *fp;
         printf("File dumpfile.bin can't be opened\n");
         exit(0);
     }
-	/* Second pass: Write data to (erased) pages */
-	for (i = 0; i < (int)dwElementSize; i += xfer_size)
+
+    number_of_blocks = (dwElementSize / WRITE_PAGE_SIZE)+1;
+    last_chunk_size = dwElementSize - ((dwElementSize / WRITE_PAGE_SIZE)*WRITE_PAGE_SIZE);
+
+	for (i = 0; i < number_of_blocks; i++)
 	{
-		chunk_size = xfer_size;
-		/* check if this is the last chunk */
-		if (i + chunk_size > (int)dwElementSize)
-			chunk_size = dwElementSize - i;
-		DFU_set_address(dif, dwElementAddress + i);
-        printf ( "Writing address 0x%08x\r",dwElementAddress + i);
-		ret = DFU_download_data(dif, data + i, chunk_size, 2);
-		if (ret != chunk_size)
-		{
-            printf("\nWritten only %d bytes\n",ret);
-			return -1;
-		}
-        fflush(stdout);
-        fwrite(data + i,1,chunk_size,fp);
+        if ( i == number_of_blocks - 1)
+            chunk_size = last_chunk_size;
+        else
+            chunk_size = WRITE_PAGE_SIZE;
+        if ( chunk_size != 0 )
+        {
+            DFU_set_address(handle, dwElementAddress + i*WRITE_PAGE_SIZE);
+            printf("Writing address 0x%08x (%.2f%%)\r",dwElementAddress + i*WRITE_PAGE_SIZE, ((100.0f / dwElementSize) * chunk_size)*(i));
+            ret = DFU_download_data(handle, data + i*WRITE_PAGE_SIZE, chunk_size, 2);
+            if (ret != chunk_size)
+            {
+                printf("\n@ %d : Written only %d bytes\n",i,ret);
+                return -1;
+            }
+            fflush(stdout);
+            fwrite(data + i,1,chunk_size,fp);
+        }
 	}
-	printf("\nDone\n");
+	printf("Write succesfully finished                                           \n");
     fclose(fp);
-    ret = DFU_download_end(dif,dwElementAddress);
+    ret = DFU_download_end(handle,dwElementAddress);
 	return 0;
 }
 
-const char *DFU_state_to_string( int state )
+unsigned char read_file[131072];
+
+int DFU_bin_upload(libusb_device_handle *handle, int xfer_size, struct dfu_file *file, unsigned int start_address, unsigned int max_transfers)
 {
-    const char *message;
-
-    switch (state) {
-        case STATE_APP_IDLE:
-            message = "appIDLE";
-            break;
-        case STATE_APP_DETACH:
-            message = "appDETACH";
-            break;
-        case STATE_DFU_IDLE:
-            message = "dfuIDLE";
-            break;
-        case STATE_DFU_DOWNLOAD_SYNC:
-            message = "dfuDNLOAD-SYNC";
-            break;
-        case STATE_DFU_DOWNLOAD_BUSY:
-            message = "dfuDNBUSY";
-            break;
-        case STATE_DFU_DOWNLOAD_IDLE:
-            message = "dfuDNLOAD-IDLE";
-            break;
-        case STATE_DFU_MANIFEST_SYNC:
-            message = "dfuMANIFEST-SYNC";
-            break;
-        case STATE_DFU_MANIFEST:
-            message = "dfuMANIFEST";
-            break;
-        case STATE_DFU_MANIFEST_WAIT_RESET:
-            message = "dfuMANIFEST-WAIT-RESET";
-            break;
-        case STATE_DFU_UPLOAD_IDLE:
-            message = "dfuUPLOAD-IDLE";
-            break;
-        case STATE_DFU_ERROR:
-            message = "dfuERROR";
-            break;
-        default:
-            message = NULL;
-            break;
-    }
-
-    return message;
-}
-
-static const char *dfu_status_names[] = {
-	/* DFU_STATUS_OK */
-		"No error condition is present",
-	/* DFU_STATUS_errTARGET */
-		"File is not targeted for use by this device",
-	/* DFU_STATUS_errFILE */
-		"File is for this device but fails some vendor-specific test",
-	/* DFU_STATUS_errWRITE */
-		"Device is unable to write memory",
-	/* DFU_STATUS_errERASE */
-		"Memory erase function failed",
-	/* DFU_STATUS_errCHECK_ERASED */
-		"Memory erase check failed",
-	/* DFU_STATUS_errPROG */
-		"Program memory function failed",
-	/* DFU_STATUS_errVERIFY */
-		"Programmed memory failed verification",
-	/* DFU_STATUS_errADDRESS */
-		"Cannot program memory due to received address that is out of range",
-	/* DFU_STATUS_errNOTDONE */
-		"Received DFU_DNLOAD with wLength = 0, but device does not think that it has all data yet",
-	/* DFU_STATUS_errFIRMWARE */
-		"Device's firmware is corrupt. It cannot return to run-time (non-DFU) operations",
-	/* DFU_STATUS_errVENDOR */
-		"iString indicates a vendor specific error",
-	/* DFU_STATUS_errUSBR */
-		"Device detected unexpected USB reset signalling",
-	/* DFU_STATUS_errPOR */
-		"Device detected unexpected power on reset",
-	/* DFU_STATUS_errUNKNOWN */
-		"Something went wrong, but the device does not know what it was",
-	/* DFU_STATUS_errSTALLEDPKT */
-		"Device stalled an unexpected request"
-};
-
-
-const char *DFU_status_to_string(int status)
-{
-	if (status > DFU_STATUS_errSTALLEDPKT)
-		return "INVALID";
-	return dfu_status_names[status];
-}
-
-int DFU_bin_upload(struct dfu_if *dif, int xfer_size, struct dfu_file *file, unsigned int start_address, unsigned int max_transfers)
-{
-unsigned int transfers = BIN_DATA_MAX_SIZE;
-unsigned int blocks;
+unsigned int transfers = BIN_DATA_MAX_SIZE , offset=2;
 int i;
 FILE *fp;
 
+    if ( max_transfers != 0 )
+        transfers = max_transfers;
+
+    if ( DFU_set_address(handle, start_address) == -1)
+        return -1;
+    if ( DFU_go_to_idle(handle) == -1)
+        return -1;
     fp = fopen(file->name,"wb");
     if ( !fp )
     {
@@ -225,26 +151,25 @@ FILE *fp;
         return -1;
     }
 
-    if ( max_transfers != 0 )
-        transfers = max_transfers;
-    blocks = transfers/xfer_size;
-
-    file->firmware = malloc(transfers);
-    free(file->firmware);
-
-    if ( DFU_set_address(dif, start_address) == -1)
-        return -1;
-    if ( DFU_go_to_idle(dif) == -1)
-        return -1;
-    for(i=0;i<blocks;i++)
+    for(i=0;i<transfers;i+=xfer_size)
     {
-        printf ( "Reading at address 0x%08x\r",start_address + blocks*xfer_size);
-        if ( DFU_upload( dif,xfer_size,i+2,file->firmware+i*xfer_size ) == -1)
+        printf ( "Reading at address 0x%08x\r",start_address+i);
+        fflush(stdout);
+        if ( DFU_upload( handle,xfer_size,offset, &read_file[i] ) == -1)
             return -1;
-        fwrite(file->firmware+i*xfer_size,1,xfer_size,fp);
+        offset++;
     }
+
+    fwrite(read_file,1,transfers,fp);
     printf("\nDone\n");
     fclose(fp);
-    DFU_go_to_idle(dif);
+    DFU_go_to_idle(handle);
     return 0;
+}
+
+int DFU_get_supported_commands(libusb_device_handle *handle)
+{
+int status;
+    status = DFU_get_state( handle );
+    return status;
 }

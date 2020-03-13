@@ -18,9 +18,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <libusb-1.0/libusb.h>
-
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
@@ -29,59 +27,86 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "DFU_usb.h"
 #include "DFU_protocol.h"
 #include "DFU_functions.h"
 
-#define DFU_TIMEOUT 5000
+unsigned char   ignore_get_status_errors = 0;
 
-int DFU_download(struct dfu_if *dif, const unsigned short length,unsigned char *data, unsigned short transaction)
+void milli_sleep(unsigned int msec)
+{
+    usleep(msec*1000);
+    //usleep(msec);
+}
+
+int DFU_download(libusb_device_handle *handle, const unsigned short wLength,unsigned char *data, unsigned short wValue)
 {
 int status;
-	status = libusb_control_transfer(dif->dev_handle,
+	status = libusb_control_transfer(handle,
 		 /* bmRequestType */	 LIBUSB_ENDPOINT_OUT |
-					 LIBUSB_REQUEST_TYPE_CLASS |
-					 LIBUSB_RECIPIENT_INTERFACE,
+                                 LIBUSB_REQUEST_TYPE_CLASS |
+                                 LIBUSB_RECIPIENT_INTERFACE,
 		 /* bRequest      */	 DFU_DNLOAD,
-		 /* wValue        */	 transaction,
-		 /* wIndex        */	 dif->interface,
+		 /* wValue        */	 wValue,
+		 /* wIndex        */	 0,
 		 /* Data          */	 data,
-		 /* wLength       */	 length,
+		 /* wLength       */	 wLength,
 					 DFU_TIMEOUT);
 	if (status < 0)
-		printf("%s: libusb_control_transfer returned %d\n",__FUNCTION__, status);
+		printf("%s: libusb_control_transfer returned %d : %s\n",__FUNCTION__, status,libusb_strerror(status));
 	return status;
 }
 
-int DFU_upload( struct dfu_if *dif, const unsigned short length,const unsigned short transaction,unsigned char* data )
+int DFU_upload( libusb_device_handle *handle, const unsigned short wLength,const unsigned short wValue,unsigned char* data )
 {
 int status;
-	status = libusb_control_transfer(dif->dev_handle,
+	status = libusb_control_transfer(handle,
 		 /* bmRequestType */	LIBUSB_ENDPOINT_IN |
                                 LIBUSB_REQUEST_TYPE_CLASS |
                                 LIBUSB_RECIPIENT_INTERFACE,
 		 /* bRequest      */	DFU_UPLOAD,
-		 /* wValue        */	transaction,
-		 /* wIndex        */	dif->interface,
+		 /* wValue        */	wValue,
+		 /* wIndex        */	0,
 		 /* Data          */	data,
-		 /* wLength       */	length,
+		 /* wLength       */	wLength,
 					 DFU_TIMEOUT);
 	if (status < 0)
 	{
-		printf("%s: libusb_control_msg returned %d\n",__FUNCTION__, status);
+		printf("%s: libusb_control_transfer returned %d : %s\n",__FUNCTION__, status,libusb_strerror(status));
+        return -1;
 	}
 	return status;
 }
 
-int DFU_get_status( struct dfu_if *dif, struct dfu_status *status )
+int DFU_get_state( libusb_device_handle *handle )
+{
+int status , length = 4 , i;
+unsigned char buffer[4];
+	status = libusb_control_transfer(handle,
+		 /* bmRequestType */	LIBUSB_ENDPOINT_IN |
+                                LIBUSB_REQUEST_TYPE_CLASS |
+                                LIBUSB_RECIPIENT_INTERFACE,
+		 /* bRequest      */	DFU_UPLOAD,
+		 /* wValue        */	0,
+		 /* wIndex        */	0,
+		 /* Data          */	buffer,
+		 /* wLength       */	length,
+					 DFU_TIMEOUT);
+	if (status < 0)
+	{
+		printf("%s: libusb_control_transfer returned %d : %s\n",__FUNCTION__, status,libusb_strerror(status));
+		return status;
+	}
+	for(i=0;i<length;i++)
+        printf("0x%02x ", buffer[i]);
+    printf ("\n");
+	status= buffer[0]<<24 | buffer[1]<<16 | buffer[2]<<8|buffer[3];
+	return status;
+}
+
+int DFU_get_status( libusb_device_handle *handle, struct dfu_status *status )
 {
 unsigned char buffer[6];
 int result;
-struct timespec req;
-
-    req.tv_sec = 0;
-    req.tv_nsec = 10000000;
-    nanosleep(&req, NULL);
 
     /* Initialize the status data structure */
     status->bStatus       = DFU_STATUS_ERROR_UNKNOWN;
@@ -89,71 +114,73 @@ struct timespec req;
     status->bState        = STATE_DFU_ERROR;
     status->iString       = 0;
 
-    result = libusb_control_transfer( dif->dev_handle,
+	result = libusb_control_transfer(handle,
           /* bmRequestType */ LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
           /* bRequest      */ DFU_GETSTATUS,
           /* wValue        */ 0,
-          /* wIndex        */ dif->interface,
+          /* wIndex        */ 0,
           /* Data          */ buffer,
           /* wLength       */ 6,
                               DFU_TIMEOUT );
+	if (result < 0)
+	{
+        if ( ignore_get_status_errors == 0 )
+            printf("%s: libusb_control_transfer returned %d : %s\n",__FUNCTION__, result,libusb_strerror(result));
+		return result;
+	}
 
-    if( 6 == result )
+    if( result == 6 )
     {
         status->bStatus = buffer[0];
-        status->bwPollTimeout = ((0xff & buffer[3]) << 16) | ((0xff & buffer[2]) << 8)  | (0xff & buffer[1]);
+        status->bwPollTimeout = ((buffer[3] << 16) & 0xff) | ((buffer[2] << 8) & 0xff) | (buffer[1] & 0xff);
         status->bState  = buffer[4];
         status->iString = buffer[5];
         if (status->bwPollTimeout != 0)
         {
-            req.tv_sec = 0;
-            req.tv_nsec = status->bwPollTimeout * 1000000;
-            if (0 > nanosleep(&req, NULL))
-            {
-                printf("dfu_get_status: nanosleep failed");
-                return -1;
-            }
+            //printf("\nRequested Delay %d mSec. ( 0x%08x , 0x%02x%02x%02x )\n",status->bwPollTimeout,status->bwPollTimeout,((buffer[3] << 16) & 0xff) , ((buffer[2] << 8) & 0xff) , (buffer[1] & 0xff));
+            milli_sleep(status->bwPollTimeout);
         }
+        result = status->bStatus;
     }
     return result;
 }
 
-int DFU_clear_status( libusb_device_handle *device,const unsigned short interface )
+int DFU_clear_status( libusb_device_handle *handle )
 {
-    return libusb_control_transfer( device,
+    return libusb_control_transfer( handle,
         /* bmRequestType */ LIBUSB_ENDPOINT_OUT| LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
         /* bRequest      */ DFU_CLRSTATUS,
         /* wValue        */ 0,
-        /* wIndex        */ interface,
+        /* wIndex        */ 0,
         /* Data          */ NULL,
         /* wLength       */ 0,
                             DFU_TIMEOUT );
 }
 
-int DFU_abort( libusb_device_handle *device, const unsigned short interface )
+int DFU_abort( libusb_device_handle *handle )
 {
-    return libusb_control_transfer( device,
+    return libusb_control_transfer( handle,
         /* bmRequestType */ LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
         /* bRequest      */ DFU_ABORT,
         /* wValue        */ 0,
-        /* wIndex        */ interface,
+        /* wIndex        */ 0,
         /* Data          */ NULL,
         /* wLength       */ 0,
                             DFU_TIMEOUT );
 }
 
-int DFU_go_to_idle(struct dfu_if *dif)
+int DFU_go_to_idle(libusb_device_handle *handle)
 {
 int ret;
 struct dfu_status dst;
 
-	ret = DFU_abort(dif->dev_handle, dif->interface);
+	ret = DFU_abort(handle);
 	if (ret < 0)
 	{
 		printf("Error sending dfu abort request\n");
 		return -1;
 	}
-	ret = DFU_get_status(dif, &dst);
+	ret = DFU_get_status(handle, &dst);
 	if (ret < 0)
 	{
 		printf("Error during abort get_status\n");
@@ -167,7 +194,7 @@ struct dfu_status dst;
 	return ret;
 }
 
-int DFU_download_data(struct dfu_if *dif, unsigned char *data, int size,int transaction)
+int DFU_download_data(libusb_device_handle *handle, unsigned char *data, int size,int transaction)
 {
 int bytes_sent;
 struct dfu_status dst;
@@ -178,7 +205,7 @@ int ret;
         printf("\n\n\nsize = 0\n");
         return -1;
     }
-	ret = DFU_download(dif, size, size ? data : NULL, transaction);
+	ret = DFU_download(handle, size, size ? data : NULL, transaction);
 	if (ret < 0)
 	{
 		printf("Error during download\n");
@@ -187,7 +214,7 @@ int ret;
 	bytes_sent = ret;
 
 	do {
-		ret = DFU_get_status(dif, &dst);
+		ret = DFU_get_status(handle, &dst);
 		if (ret < 0) {
 			printf("Error during download get_status\n");
 			return ret;
@@ -202,207 +229,78 @@ int ret;
 			printf("Transitioning to dfuMANIFEST state\n");
 
 	if (dst.bStatus != DFU_STATUS_OK) {
-		printf(" failed!\n");
-		printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-		       DFU_state_to_string(dst.bState), dst.bStatus,
-		       DFU_status_to_string(dst.bStatus));
+		printf("Failed with 0x%02x\n",dst.bStatus);
 		return -1;
 	}
 	return bytes_sent;
 }
 
-int DFU_set_address(struct dfu_if *dif, unsigned int address)
+int DFU_general_command(libusb_device_handle *handle, unsigned int address , unsigned char command, unsigned int cmdlen)
 {
 unsigned char buf[5];
-int length;
 int ret;
 struct dfu_status dst;
-int firstpoll = 1;
 
-    buf[0] = 0x21;	/* Set Address Pointer command */
-    length = 5;
+    buf[0] = command;
 	buf[1] = address & 0xff;
 	buf[2] = (address >> 8) & 0xff;
 	buf[3] = (address >> 16) & 0xff;
 	buf[4] = (address >> 24) & 0xff;
 
-	ret = DFU_download(dif, length, buf, 0);
+	ret = DFU_download(handle, cmdlen, buf, 0);
 	if (ret < 0)
 	{
-		printf("%s : Error 0 during set_address\n",__FUNCTION__);
+        printf("%s : Error 0 during command 0x%02x\n",__FUNCTION__,command);
 		return -1;
 	}
-	do {
-		ret = DFU_get_status(dif, &dst);
-		if (ret < 0)
-		{
-            printf("%s : Error 1 during set_address\n",__FUNCTION__);
-            return -1;
-		}
-		if (firstpoll) {
-			firstpoll = 0;
-			if (dst.bState != DFU_STATE_dfuDNBUSY) {
-				printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-				       DFU_state_to_string(dst.bState), dst.bStatus,
-				       DFU_status_to_string(dst.bStatus));
-                printf("%s : Error 2 during set_address\n",__FUNCTION__);
-
-			}
-			/* STM32F405 lies about mass erase timeout */
-			/*
-			if (command == MASS_ERASE && dst.bwPollTimeout == 100) {
-				dst.bwPollTimeout = 35000;
-				printf("Setting timeout to 35 seconds\n");
-			}
-			*/
-		}
-	} while (dst.bState == DFU_STATE_dfuDNBUSY);
-
+    ret = DFU_get_status(handle, &dst);
+    if (ret < 0)
+    {
+        if ( ignore_get_status_errors == 0 )
+            printf("%s : Error 1 during command 0x%02x with len %d\n",__FUNCTION__,command,cmdlen);
+        return -1;
+    }
+	if (dst.bState != STATE_DFU_DOWNLOAD_BUSY)
+	{
+        printf("%s : with command 0x%02x expecting STATE_DFU_DOWNLOAD_BUSY ( 0x%02x ), received 0x%02x\n",__FUNCTION__,command,STATE_DFU_DOWNLOAD_BUSY,dst.bStatus);
+        return -1;
+	}
+    //printf("%s : received %d for timeout\n",__FUNCTION__,dst.bwPollTimeout);
+    ret = DFU_get_status(handle, &dst);
+    if (ret < 0)
+    {
+        printf("%s : Error 2 during command 0x%02x\n",__FUNCTION__,command);
+        return -1;
+    }
 	if (dst.bStatus != DFU_STATUS_OK)
 	{
-            printf("%s : Error 3 during set_address\n",__FUNCTION__);
-			return -1;
-    }
-	return ret;
+        printf("%s : with command 0x%02x expecting DFU_STATUS_OK ( 0x%02x ), received 0x%02x\n",__FUNCTION__,command,DFU_STATUS_OK,dst.bStatus);
+        return -1;
+	}
+	return 0;
 }
 
-int DFU_erase_page(struct dfu_if *dif, unsigned int address)
+int DFU_set_address(libusb_device_handle *handle, unsigned int address)
 {
-unsigned char buf[5];
-int length;
-int ret;
-struct dfu_status dst;
-int firstpoll = 1;
-
-    buf[0] = 0x41;	/* Erase command */
-    length = 5;
-	buf[1] = address & 0xff;
-	buf[2] = (address >> 8) & 0xff;
-	buf[3] = (address >> 16) & 0xff;
-	buf[4] = (address >> 24) & 0xff;
-
-	ret = DFU_download(dif, length, buf, 0);
-	if (ret < 0) {
-		printf("%s : Error 0 during erase\n",__FUNCTION__);
-	}
-	do {
-		ret = DFU_get_status(dif, &dst);
-		if (ret < 0) {
-            printf("%s : Error 1 during erase\n",__FUNCTION__);
-		}
-		if (firstpoll) {
-			firstpoll = 0;
-			if (dst.bState != DFU_STATE_dfuDNBUSY) {
-				printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-				       DFU_state_to_string(dst.bState), dst.bStatus,
-				       DFU_status_to_string(dst.bStatus));
-                printf("%s : Error 2 during erase\n",__FUNCTION__);
-
-			}
-			/* STM32F405 lies about mass erase timeout */
-			/*
-			if (command == MASS_ERASE && dst.bwPollTimeout == 100) {
-				dst.bwPollTimeout = 35000;
-				printf("Setting timeout to 35 seconds\n");
-			}
-			*/
-		}
-	} while (dst.bState == DFU_STATE_dfuDNBUSY);
-
-	if (dst.bStatus != DFU_STATUS_OK) {
-            printf("%s : Error 3 during erase\n",__FUNCTION__);
-	}
-	return ret;
+    return DFU_general_command( handle,  address , DFU_SET_ADDRESS_CMD , DFU_SET_ADDRESS_CMD_LEN);
 }
 
-int DFU_mass_erase(struct dfu_if *dif)
+int DFU_erase_page(libusb_device_handle *handle, unsigned int address)
 {
-unsigned char buf[5];
-int length;
-int ret;
-struct dfu_status dst;
-int firstpoll = 1;
-
-    buf[0] = 0x41;	/* Erase command */
-    length = 1;
-
-	ret = DFU_download(dif, length, buf, 0);
-	if (ret < 0) {
-		printf("%s : Error 0 during erase\n",__FUNCTION__);
-	}
-	do {
-		ret = DFU_get_status(dif, &dst);
-		if (ret < 0) {
-            printf("%s : Error 1 during mass erase\n",__FUNCTION__);
-		}
-		if (firstpoll) {
-			firstpoll = 0;
-			if (dst.bState != DFU_STATE_dfuDNBUSY) {
-				printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-				       DFU_state_to_string(dst.bState), dst.bStatus,
-				       DFU_status_to_string(dst.bStatus));
-                printf("%s : Error 2 during mass erase\n",__FUNCTION__);
-
-			}
-			/* STM32F405 lies about mass erase timeout */
-			/*
-			if (command == MASS_ERASE && dst.bwPollTimeout == 100) {
-				dst.bwPollTimeout = 35000;
-				printf("Setting timeout to 35 seconds\n");
-			}
-			*/
-		}
-	} while (dst.bState == DFU_STATE_dfuDNBUSY);
-
-	if (dst.bStatus != DFU_STATUS_OK) {
-            printf("%s : Error 3 during mass erase\n",__FUNCTION__);
-	}
-	return ret;
+    return DFU_general_command( handle,  address , DFU_ERASE_CMD , DFU_ERASE_CMD_LEN);
 }
 
-int DFU_download_end(struct dfu_if *dif,unsigned int address)
+int DFU_mass_erase(libusb_device_handle *handle)
 {
-int ret;
-struct dfu_status dst;
-
-    printf("Application started from address 0x%08x\n\n",address);
-    DFU_set_address(dif, address);
-	ret = DFU_download(dif, 0, NULL, 0x01);
-	if (ret < 0)
-	{
-		printf("Error during download\n");
-		return ret;
-	}
-
-	do {
-		ret = DFU_get_status(dif, &dst);
-		return ret;
-		if (ret < 0)
-		{
-			printf("Error during download get_status\n");
-			return ret;
-		}
-		if ( dst.bState == DFU_STATE_dfuDNLOAD_IDLE )
-            printf("dst.bState = DFU_STATE_dfuDNLOAD_IDLE\n");
-		if ( dst.bState == DFU_STATE_dfuIDLE )
-            printf("dst.bState = DFU_STATE_dfuIDLE\n");
-        printf("dst.bState = 0x%04x\n",dst.bState);
-
-	} while (dst.bState != DFU_STATE_dfuDNLOAD_IDLE &&
-		 dst.bState != DFU_STATE_dfuERROR &&
-		 dst.bState != DFU_STATE_dfuMANIFEST &&
-		 dst.bState == DFU_STATE_dfuDNBUSY);
-
-	if (dst.bState == DFU_STATE_dfuMANIFEST)
-			printf("Transitioning to dfuMANIFEST state\n");
-
-	if (dst.bStatus != DFU_STATUS_OK) {
-		printf(" failed!\n");
-		printf("state(%u) = %s, status(%u) = %s\n", dst.bState,
-		       DFU_state_to_string(dst.bState), dst.bStatus,
-		       DFU_status_to_string(dst.bStatus));
-		return -1;
-	}
-	return ret;
+    return DFU_general_command( handle,  0 , DFU_MASS_ERASE_CMD , DFU_MASS_ERASE_CMD_LEN);
 }
 
+int DFU_download_end(libusb_device_handle *handle, unsigned int address)
+{
+    DFU_set_address(handle, address);
+    ignore_get_status_errors = 1;
+    DFU_general_command( handle,  0 , DFU_EXIT_DFU_CMD , DFU_EXIT_DFU_CMD_LEN);
+    printf("Target should be running\n");
+    ignore_get_status_errors = 0;
+    return 0;
+}
