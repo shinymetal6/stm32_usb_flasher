@@ -38,10 +38,14 @@
 		</Linker>
 		<Unit filename="include/DFU_functions.h" />
 		<Unit filename="include/DFU_protocol.h" />
+		<Unit filename="include/elf_int.h" />
 		<Unit filename="src/DFU_functions.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="src/DFU_protocol.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/elf_int.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="src/main.c">
