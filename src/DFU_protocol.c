@@ -35,7 +35,6 @@ unsigned char   ignore_get_status_errors = 0;
 void milli_sleep(unsigned int msec)
 {
     usleep(msec*1000);
-    //usleep(msec);
 }
 
 int DFU_download(libusb_device_handle *handle, const unsigned short wLength,unsigned char *data, unsigned short wValue)
@@ -96,6 +95,7 @@ unsigned char buffer[4];
 		printf("%s: libusb_control_transfer returned %d : %s\n",__FUNCTION__, status,libusb_strerror(status));
 		return status;
 	}
+	printf("Supported commands : ");
 	for(i=0;i<length;i++)
         printf("0x%02x ", buffer[i]);
     printf ("\n");

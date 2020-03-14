@@ -86,68 +86,49 @@ int i,outlen;
 }
 
 
-char *xtract(char *line_in , char *first_marker , char *second_marker)
+int get_size(unsigned char *line_in , unsigned int *address)
 {
-char line[256];  // where we will put a copy of the input
-char *sub;
-
-    strcpy(line, line_in);
-    sub = strtok(line,first_marker); // find the first double quote
-    sub = strtok(NULL,second_marker);   // find the second double quote
-    return sub;
+int i,k;
+int first=0,second=0,star;
+//char addr[12]
+char size[4];
+    for(i=0;i<strlen((char * )line_in);i++)
+    {
+        if (( line_in[i] == '/') && (first != 0))
+            second = i;
+        if (( line_in[i] == '/') && (first == 0))
+            first=i+3;
+        if ( line_in[i] == '*')
+            star=i;
+    }
+    /*
+    k=0;
+    for(i=first;i<second;i++)
+    {
+        addr[k] = line_in[i];
+        k++;
+    }
+    addr[k] = 0;
+    */
+    k=0;
+    for(i=second+1;i<star;i++)
+    {
+        size[k] = line_in[i];
+        k++;
+    }
+    size[k] = 0;
+    *address = 0x08000000;
+    return atoi(size);
 }
 
 
 void list_device_characteristics(unsigned char *data , int len )
 {
-char address[128] , size[128];
-int intsize;
-
-    if ( data[0] == '@')
+unsigned int address;
+    if ( strncmp(data,"@Internal Flash",15) == 0 )
     {
-        if ( strncmp((char *)data,"@Internal Flash",15) == 0 )
-        {
-            printf("Data : %s\n",data);
-            printf("Internal Flash : ");
-            sprintf(address,"%s", xtract((char *)data,"/","*"));
-            size[0] = address[11];
-            size[1] = address[12];
-            if ( (address[13] > 0x2f) && ( address[13] < 0x3a))
-                size[2] = address[12];
-            else
-                size[2] = 0;
-            address[10]=0;
-            device_max_transfers = atoi(size)*1024;
-            printf("%s %d bytes\n",address,device_max_transfers);
-        }
-        if ( strncmp((char *)data,"@Option Bytes",13) == 0 )
-        {
-            printf("Option Bytes   : ");
-            sprintf(address,"%s", xtract((char *)data,"/","*"));
-            size[0] = address[11];
-            size[1] = address[12];
-            if ( (address[13] > 0x2f) && ( address[13] < 0x3a))
-                size[2] = address[12];
-            else
-                size[2] = 0;
-            address[10]=0;
-            intsize = atoi(size)*1024;
-            printf("%s %d bytes\n",address,intsize);
-        }
-        if ( strncmp((char *)data,"@OTP Memory",11) == 0 )
-        {
-            printf("OTP Memory     : ");
-            sprintf(address,"%s", xtract((char *)data,"/","*"));
-            size[0] = address[11];
-            size[1] = address[12];
-            if ( (address[13] > 0x2f) && ( address[13] < 0x3a))
-                size[2] = address[12];
-            else
-                size[2] = 0;
-            address[10]=0;
-            intsize = atoi(size)*1024;
-            printf("%s %d bytes\n",address,intsize);
-        }
+        device_max_transfers = get_size(data,&address) * 1024;
+        printf("Internal Flash : %d bytes @ 0x%08x\n",device_max_transfers,address);
     }
 }
 
@@ -276,9 +257,4 @@ unsigned int address = ADDRESS;
 	}
 
     dfu_usb_deInit();
-/*
-	libusb_close(dfu_root->dev_handle);
-	dfu_root->dev_handle = NULL;
-	libusb_exit(ctx);
-	*/
 }

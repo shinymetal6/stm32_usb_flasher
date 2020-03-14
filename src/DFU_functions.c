@@ -28,23 +28,29 @@
 
 #include "DFU_protocol.h"
 #include "DFU_functions.h"
+#include "elf_int.h"
+
 
 void DFU_load_file(struct dfu_file *file)
 {
-FILE *fp;
-/*
-	file->size.prefix = 0;
-	file->size.suffix = 0;
+FILE    *fp;
+char    out_file_name[32],in_file_name[32];
+char    file_type[32];
 
-	file->bcdDFU = 0;
-	file->idVendor = 0xffff;
-	file->idProduct = 0xffff;
-	file->bcdDevice = 0xffff;
-	file->lmdfu_address = 0;
-*/
-	free(file->firmware);
+    sprintf(file_type,"it's a binary file");
+    sprintf(in_file_name,"%s",file->name);
+    sprintf(out_file_name,"translated.bin");
+    free(file->firmware);
     file->firmware = malloc(BIN_DATA_MAX_SIZE);
 
+    /* try with elf interpreter */
+    if ( load_elf(file->name, out_file_name , 0) == 0 )
+    {
+        sprintf(file_type,"it's an ELF file");
+        sprintf(file->name,"%s",out_file_name);
+    }
+
+    printf("%s %s\n",in_file_name, file_type);
     fp = fopen(file->name,"rb");
     if ( fp )
     {
@@ -80,7 +86,7 @@ int ret;
 int number_of_blocks;
 int chunk_size,last_chunk_size;
 FILE *fp;
-/*
+#ifdef  SINGLE_PAGE_ERASE
     for (i = dwElementAddress; i < dwElementAddress + dwElementSize + 1; i += ERASE_PAGE_SIZE)
     {
         printf ( "Erasing address 0x%08x\r",i);
@@ -88,10 +94,11 @@ FILE *fp;
         if ( DFU_erase_page(handle, i) == -1)
             return -1;
     }
-    */
+#else
     printf ( "Mass erase\r");
     fflush(stdout);
     DFU_mass_erase(handle);
+#endif
 
     fp = fopen("dumpfile.bin","wb");
     if ( !fp )
