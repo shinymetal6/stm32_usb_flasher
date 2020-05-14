@@ -32,6 +32,8 @@
 
 struct libusb_device_handle *handle;
 int device_max_transfers;
+int flash_address , option_bytes_address , otp_address;
+int flash_size , option_bytes_size , otp_size;
 
 void usage(void)
 {
@@ -41,6 +43,8 @@ void usage(void)
     printf("    -w <file name> : writes device with file <filename>, binary only\n");
     printf("    -r <file name> : reads device and store to file <filename>, binary only\n");
     printf("    -n <number of bytes>: valid only with -r, default is %d\n",BIN_DATA_MAX_SIZE);
+    printf("    -o : dump option bytes\n");
+    printf("    -u : unprotect device\n");
 }
 
 static void print_devs(libusb_device **devs)
@@ -62,73 +66,54 @@ static void print_devs(libusb_device **devs)
 	}
 }
 
-
-void spr(unsigned char *tbuf )
+int parse_data(unsigned char *data)
 {
-int i,outlen;
-    outlen = tbuf[0] - 2;
-    outlen +=2;
-    outlen = tbuf[0];
+int  address,m1,m2,m3,size1,size2,size3;
+char name0[32],name1[20],type1K,type1a,type2K,type2a,type3K,type3a;
+// Area Name        address    m1*size1,m2*size2,m3*size3
 
-    printf("HEX:\n");
-
-    for(i=2;i<outlen;i+=2)
-    {
-        printf("0x%02x ",tbuf[i]);
-    }
-    printf("\nASCII:\n");
-
-    for(i=2;i<outlen;i+=2)
-    {
-        printf("%c",tbuf[i]);
-    }
-    printf("\n");
+   sscanf( (char * )data,"%s %s /0x%08x/%02d*%03d%c%c,%02d*%03d%c%c,%02d*%03d%c%c",name0,name1,&address,&m1,&size1,&type1K,&type1a,&m2,&size2,&type2K,&type2a,&m3,&size3,&type3K,&type3a);
+   //printf("%s %s 0x%08x %d %d %c%c %d %d %c%c %d %d %c%c\n",name0,name1,address,m1,size1,type1K,type1a,m2,size2,type2K,type2a,m3,size3,type3K,type3a);
+   if (type1K == 'K')
+    size1 *=1024;
+   if (type2K == 'K')
+    size2 *=1024;
+   if (type3K == 'K')
+    size3 *=1024;
+   return m1*size1+m2*size2+m3*size3;
 }
 
-
-int get_size(unsigned char *line_in , unsigned int *address)
+int get_address(unsigned char *data)
 {
-int i,k;
-int first=0,second=0,star;
-//char addr[12]
-char size[4];
-    for(i=0;i<strlen((char * )line_in);i++)
-    {
-        if (( line_in[i] == '/') && (first != 0))
-            second = i;
-        if (( line_in[i] == '/') && (first == 0))
-            first=i+3;
-        if ( line_in[i] == '*')
-            star=i;
-    }
-    /*
-    k=0;
-    for(i=first;i<second;i++)
-    {
-        addr[k] = line_in[i];
-        k++;
-    }
-    addr[k] = 0;
-    */
-    k=0;
-    for(i=second+1;i<star;i++)
-    {
-        size[k] = line_in[i];
-        k++;
-    }
-    size[k] = 0;
-    *address = 0x08000000;
-    return atoi(size);
+int  address;
+char name0[32],name1[20];
+   sscanf( (char *)data,"%s %s /0x%08x/",name0,name1,&address);
+   return address;
 }
-
 
 void list_device_characteristics(unsigned char *data , int len )
 {
-unsigned int address;
-    if ( strncmp(data,"@Internal Flash",15) == 0 )
+//@Internal Flash  /0x08000000/04*016Kg,01*64Kg,03*128Kg
+    if ( data[0] == '@')
     {
-        device_max_transfers = get_size(data,&address) * 1024;
-        printf("Internal Flash : %d bytes @ 0x%08x\n",device_max_transfers,address);
+        if ( strncmp((char *)data,"@Internal Flash",15) == 0 )
+        {
+            flash_address = get_address(data);
+            flash_size = device_max_transfers = parse_data(data);
+            printf("Internal Flash @ 0x%08x , %d Kbytes\n",flash_address,device_max_transfers/1024);
+        }
+        if ( strncmp((char *)data,"@Option Bytes",13) == 0 )
+        {
+            option_bytes_address = get_address(data);
+            option_bytes_size = parse_data(data);
+            printf("Option Bytes   @ 0x%08x , %d bytes\n",option_bytes_address,option_bytes_size);
+        }
+        if ( strncmp((char *)data,"@OTP Memory",11) == 0 )
+        {
+            otp_address = get_address(data);
+            otp_size = parse_data(data);
+            printf("OTP Memory     @ 0x%08x , %d bytes\n",otp_address,otp_size);
+        }
     }
 }
 
@@ -146,11 +131,13 @@ unsigned char tbuf[255] , data[255];
 	}
     print_devs(devs);
     r = 0;
-    while( r < 255 )
+    while( 1 )
     {
         for(i=0;i<10;i++)
         {
             r = libusb_get_string_descriptor(handle, i, 0, tbuf, sizeof(tbuf));
+            if ( r == 255 )
+                return 0;
             if (( r < 255 ) && (r > 4 ))
             {
                 k = 0;
@@ -201,7 +188,7 @@ unsigned int address = ADDRESS;
 
 	memset(&file, 0, sizeof(file));
 
-    while ((c = getopt (argc, argv, ":w:r:n:es")) != -1)
+    while ((c = getopt (argc, argv, ":w:r:n:esou")) != -1)
     {
         switch (c)
         {
@@ -216,6 +203,10 @@ unsigned int address = ADDRESS;
                             break;
             case 'r'    :   file.name= optarg;
                             mode = MODE_UPLOAD;
+                            break;
+            case 'o'    :   mode = MODE_READ_OPTIONS;
+                            break;
+            case 'u'    :   mode = MODE_UNPROTECT;
                             break;
             default     :   usage(); return -1;
         }
@@ -249,6 +240,12 @@ unsigned int address = ADDRESS;
             break;
         case  MODE_SUPPORTED_COMMANDS :
             DFU_get_supported_commands(handle);
+            break;
+        case  MODE_READ_OPTIONS :
+            DFU_read_option_bytes(handle);
+            break;
+        case MODE_UNPROTECT:
+            DFU_unprotect(handle);
             break;
         default:
             printf( "Unsupported mode: %u\n", mode);

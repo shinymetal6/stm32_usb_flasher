@@ -63,6 +63,8 @@ enum mode {
         MODE_SUPPORTED_COMMANDS,
         MODE_DETACH,
         MODE_MASS_ERASE,
+        MODE_UNPROTECT,
+        MODE_READ_OPTIONS,
         MODE_UPLOAD,
         MODE_DOWNLOAD
 };
@@ -88,7 +90,7 @@ struct dfu_status {
 #define VID 0x0483
 #define PID 0xdf11
 
-#define DFU_TIMEOUT 5000
+#define DFU_TIMEOUT 15000
 
 #define     BIN_DATA_MAX_SIZE   131072
 #define     ERASE_PAGE_SIZE     2048

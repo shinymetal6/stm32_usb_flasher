@@ -68,6 +68,7 @@ int status;
 		 /* Data          */	data,
 		 /* wLength       */	wLength,
 					 DFU_TIMEOUT);
+    printf("%s: DFU_UPLOAD 0x%04x wValue 0x%04x wLength 0x%04x\n",__FUNCTION__, DFU_UPLOAD,wValue,wLength);
 	if (status < 0)
 	{
 		printf("%s: libusb_control_transfer returned %d : %s\n",__FUNCTION__, status,libusb_strerror(status));
@@ -121,7 +122,7 @@ int result;
           /* wIndex        */ 0,
           /* Data          */ buffer,
           /* wLength       */ 6,
-                              DFU_TIMEOUT );
+                              DFU_TIMEOUT * 5);
 	if (result < 0)
 	{
         if ( ignore_get_status_errors == 0 )
@@ -142,6 +143,9 @@ int result;
         }
         result = status->bStatus;
     }
+    else
+        printf("%s: libusb_control_transfer returned %d\n",__FUNCTION__, result);
+
     return result;
 }
 
@@ -247,6 +251,9 @@ struct dfu_status dst;
 	buf[3] = (address >> 16) & 0xff;
 	buf[4] = (address >> 24) & 0xff;
 
+	milli_sleep(100);
+	DFU_clear_status(handle);
+	milli_sleep(100);
 	ret = DFU_download(handle, cmdlen, buf, 0);
 	if (ret < 0)
 	{
@@ -284,6 +291,26 @@ int DFU_set_address(libusb_device_handle *handle, unsigned int address)
 {
     return DFU_general_command( handle,  address , DFU_SET_ADDRESS_CMD , DFU_SET_ADDRESS_CMD_LEN);
 }
+unsigned int unprotect_data[64];
+extern  int flash_address , option_bytes_address , otp_address;
+extern  int flash_size , option_bytes_size , otp_size;
+int DFU_unprotect(libusb_device_handle *handle)
+{
+int ret;
+    unprotect_data[0] = 0x5500aaff;
+    unprotect_data[4] = 0x00ffffff;
+    DFU_set_address(handle, option_bytes_address);
+    printf("%s : Writing address 0x%08x with 0x%08x 0x%08x\n",__FUNCTION__,option_bytes_address,unprotect_data[0],unprotect_data[1]);
+    ret = DFU_download_data(handle, (unsigned char * )unprotect_data, option_bytes_size, 2);
+    if (ret != option_bytes_size)
+    {
+        printf("Written only %d bytes\n",ret);
+        return -1;
+    }
+
+    return 0;
+}
+
 
 int DFU_erase_page(libusb_device_handle *handle, unsigned int address)
 {

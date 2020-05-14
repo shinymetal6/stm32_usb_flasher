@@ -95,17 +95,23 @@ FILE *fp;
             return -1;
     }
 #else
-    printf ( "Mass erase\r");
+    printf ( "Mass erase\n");
     fflush(stdout);
+    milli_sleep(100);
+	DFU_clear_status(handle);
+	milli_sleep(100);
     DFU_mass_erase(handle);
 #endif
-
+	milli_sleep(100);
+	DFU_clear_status(handle);
+	milli_sleep(100);
     fp = fopen("dumpfile.bin","wb");
     if ( !fp )
     {
         printf("File dumpfile.bin can't be opened\n");
         exit(0);
     }
+    printf ( "Starting write\n");
 
     number_of_blocks = (dwElementSize / WRITE_PAGE_SIZE)+1;
     last_chunk_size = dwElementSize - ((dwElementSize / WRITE_PAGE_SIZE)*WRITE_PAGE_SIZE);
@@ -170,6 +176,37 @@ FILE *fp;
     fwrite(read_file,1,transfers,fp);
     printf("\nDone\n");
     fclose(fp);
+    DFU_go_to_idle(handle);
+    return 0;
+}
+extern  int flash_address , option_bytes_address , otp_address;
+extern  int flash_size , option_bytes_size , otp_size;
+
+#define OPTION_BYTES_SIZE   48
+unsigned int optbytes[OPTION_BYTES_SIZE];
+int DFU_read_option_bytes(libusb_device_handle *handle )
+{
+int i;
+
+    if ( DFU_set_address(handle, option_bytes_address) == -1)
+    {
+        printf("%s : error @ DFU_set_address\n",__FUNCTION__);
+        return -1;
+    }
+    if ( DFU_go_to_idle(handle) == -1)
+    {
+        printf("%s : error @ DFU_go_to_idle\n",__FUNCTION__);
+        return -1;
+    }
+
+    if ( DFU_upload( handle,option_bytes_size,2, (unsigned char* )optbytes ) == -1)
+    {
+        printf("%s : error @ DFU_upload\n",__FUNCTION__);
+        return -1;
+    }
+
+    for(i=0;i<option_bytes_size;i+=8)
+        printf("0x%08x : 0x%08x\n",option_bytes_address+i,optbytes[i]);
     DFU_go_to_idle(handle);
     return 0;
 }
